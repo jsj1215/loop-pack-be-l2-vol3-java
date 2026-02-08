@@ -1,34 +1,67 @@
 ## 📌 Summary
 <!--
-    어떤 기능/이슈를 해결했는지 요약해주세요.
+무엇을/왜 바꿨는지 한눈에 보이게 작성한다.
+- 문제(배경) / 목표 / 결과(효과) 중심으로 3~5줄 권장한다.
 -->
 
-## 💬 Review Points
+- 배경:
+- 목표:
+- 결과:
+
+
+## 🧭 Context & Decision
 <!--
-    리뷰어가 더 효과적인 리뷰를 할 수 있도록 도와주는 부분입니다.
-    (1) 리뷰어가 중점적으로 봐줬으면 하는 부분
-    (2) 고민했던 설계 포인트나 로직
-    (3) 리뷰어가 확인해줬으면 하는 테스트 케이스나 예외 상황
-    (4) 기타 리뷰어가 참고해야 할 사항
+설계 의사결정 기록을 남기는 영역이다.
+"왜 이렇게 했는가"가 핵심이다.
 -->
 
-## ✅ Checklist
+### 문제 정의
+- 현재 동작/제약:
+- 문제(또는 리스크):
+- 성공 기준(완료 정의):
+
+### 선택지와 결정
+- 고려한 대안:
+  - A:
+  - B:
+- 최종 결정:
+- 트레이드오프:
+- 추후 개선 여지(있다면):
+
+
+## 🏗️ Design Overview
 <!--
-    해당 작업이 완료되었는지 확인하기 위한 체크리스트입니다.
-    리뷰어가 확인해야 할 사항을 포함합니다.
-    계획중이나 아직 완료되지 않은 작업 또한 `TODO -` 로 작성해주세요.  
-
-    ex.
-    - [ ] 테스트 코드 포함
-    - [ ] 불필요한 코드 제거
-    - [ ] README or 주석 보강 (필요 시)
+구성 요소와 책임을 간단히 정리한다.
 -->
 
-## 📎 References
+### 변경 범위
+- 영향 받는 모듈/도메인:
+- 신규 추가:
+- 제거/대체:
+
+### 주요 컴포넌트 책임
+- `ComponentA`: 
+- `ComponentB`: 
+- `ComponentC`: 
+
+
+## 🔁 Flow Diagram
 <!--
-  (Optional: 참고 자료가 없는 작업 - 단순 버그 픽스 등 의 경우엔 해당 란을 제거해주세요 !)
-  리뷰어가 참고할 수 있는 추가적인 정보나 문서, 링크 등을 작성해주세요.
-  예시:
-  - 관련 문서 링크
-  - 관련 정책 링크
+가능하면 Mermaid로 작성한다. (시퀀스/플로우 중 택1)
+"핵심 경로"를 먼저 그리고, 예외 흐름은 아래에 분리한다.
 -->
+
+### Main Flow
+```mermaid
+sequenceDiagram
+  autonumber
+  participant Client
+  participant API
+  participant Service
+  participant DB
+  Client->>API: request
+  API->>Service: command/query
+  Service->>DB: read/write
+  DB-->>Service: result
+  Service-->>API: response
+  API-->>Client: response
