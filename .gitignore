@@ -41,3 +41,6 @@ out/
 
 ### QueryDSL Generated ###
 **/src/main/generated/
+
+### Claude Code ###
+.claude/
