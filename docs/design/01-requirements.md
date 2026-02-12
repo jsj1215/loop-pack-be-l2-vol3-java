@@ -14,73 +14,73 @@
 - 예외 사항에 대한 분기도 잘 보여질 수 있도록 한다.
 - 각 클래스가 최소한의 책임과 역할을 가지도록 설계한다.
 - 해당 작업은 /docs/design/02-sequence-diagrams.md 파일에 작성 한다.
-  ### 고객 서비스
-  (1) 브랜드 정보 조회
-      클라이언트 -> Controller (get) : 브랜드 ID가 있는지 검증. 없다면? 400 error
-      Controller -> Facade
-      Facade -> domain(Service)
-      domain(Service) -> infra(Repository) : DB조회. 데이터가 없다면? 404 error. 브랜드 상태가 ACTIVE가 아닌 경우? 404 error
-      조회한 데이터 VO 나 DTO에 담아 리턴 -> domain(Serive) -> Facade -> Controller
-  (2) 상품 목록 조회
-      클라이언트 -> Controller (get) : query parameter → ProductSearchCondition 생성
-      Controller -> Facade
-      Facade -> domain(Service)
-      domain(Service) -> infra(Repository) : DB조회. 데이터가 하나도 없다면? 200 OK "조회된 내역이 없습니다."
-      조회한 데이터 VO 나 DTO에 담아 리턴 -> domain(Serive) -> Facade -> Controller
-  (3) 상품 정보 조회
-      클라이언트 -> Controller (get)
-      Controller -> Facade
-      Facade -> domain(Service)
-      domain(Service) -> infra(Repository) : DB조회. 데이터가 하나도 없다면? 404 error
-      조회한 데이터 VO 나 DTO에 담아 리턴 -> domain(Serive) -> Facade -> Controller 
-  (4) 좋아요
-      클라이언트 -> Controller : MemberAuthInterceptor 인증 처리 → @LoginMember Member 주입. 인증 실패 시 401 Unauthorized
-      Controller -> Facade
-      Facade -> domain(Service)
-      domain(Service) -> infra(Repository) : 해당 상품ID로 USER_ID 데이터가 있는지 확인. 없다면 Insert, 있다면 LIKE_YN이 'N' 일 경우만 'Y'로 Update
-  (5) 좋아요 취소
-      클라이언트 -> Controller : MemberAuthInterceptor 인증 처리 → @LoginMember Member 주입. 인증 실패 시 401 Unauthorized
-      Controller -> Facade
-      Facade -> domain(Service)
-      domain(Service) -> infra(Repository) : 해당 상품ID로 USER_ID 데이터가 있는지 확인. 없다면 400 Bad Request, 있다면 LIKE_YN이 'Y' 일 경우만 'N'으로 Update
-  (6) 좋아요한 상품 목록 조회
-      클라이언트 -> Controller : MemberAuthInterceptor 인증 처리 → @LoginMember Member 주입. 인증 실패 시 401 Unauthorized
-      Controller -> Facade
-      Facade -> domain(Service)
-      domain(Service) -> infra(Repository) : 해당 USER_ID로 좋아요 한 목록 조회.
-      조회한 데이터 VO 나 DTO에 담아 리턴 -> domain(Serive) -> Facade -> Controller
-  (7) 장바구니 담기
-      클라이언트 -> Controller : MemberAuthInterceptor 인증 처리 → @LoginMember Member 주입. 인증 실패 시 401 Unauthorized
-      Controller -> Facade
-      Facade -> domain(Service)
-      domain(Service) -> infra(Repository)
-     : 해당 상품+옵션의 재고가 있는지 확인. 재고가 부족하면 400 Bad Request, 재고가 있다면 Cart 테이블에 데이터 추가
-     : 기존에 동일한 상품+옵션이 장바구니에 있다면 수량만 증가시킨다. (합산 수량 > 재고 시 400 Bad Request)
-  (8) 주문 요청
-      클라이언트 -> Controller : MemberAuthInterceptor 인증 처리 → @LoginMember Member 주입. 인증 실패 시 401 Unauthorized
-      Controller -> Facade
-      Facade -> domain(Service)
-      domain(Service) -> infra(Repository)
-      : 주문 항목별 재고 검증 및 차감. 재고 부족 시 400 Bad Request
-      : 주문 데이터 + 스냅샷(상품명, 옵션명, 브랜드명, 판매가, 공급가, 배송비, 수량) 생성
-      : 장바구니에서 주문한 경우 해당 장바구니 항목 삭제
-      : 실패 시 @Transactional 롤백으로 재고 자동 복원 (결제 기능 없음)
-  (9) 주문 목록 조회
-      클라이언트 -> Controller (get) : MemberAuthInterceptor 인증 처리 → @LoginMember Member 주입. 인증 실패 시 401 Unauthorized
-      Controller -> Facade : startAt, endAt 필수 파라미터. 없으면 400 Bad Request
-      Facade -> domain(Service)
-      domain(Service) -> infra(Repository) : DB조회. 데이터가 하나도 없다면? 200 OK "조회된 내역이 없습니다."
-      조회한 데이터 VO 나 DTO에 담아 리턴 -> domain(Serive) -> Facade -> Controller
-  (10) 주문건에 대한 상세 정보 조회
-      클라이언트 -> Controller (get) : MemberAuthInterceptor 인증 처리 → @LoginMember Member 주입. 인증 실패 시 401 Unauthorized
-      Controller -> Facade
-      Facade -> domain(Service)
-      domain(Service) -> infra(Repository) : DB조회. 주문이 존재하지 않거나 본인 주문이 아닌 경우 404 Not Found
-      조회한 데이터 VO 나 DTO에 담아 리턴 -> domain(Serive) -> Facade -> Controller
 
-  ### 어드민
-  아래 상세 요구사항 참고
-    
+#### 고객 서비스
+
+**(1) 브랜드 정보 조회**
+> `클라이언트` → `Controller (GET)` → `Facade` → `Service` → `Repository`
+- Controller: 브랜드 ID가 있는지 검증. 없다면? 400 error
+- Repository: DB조회. 데이터가 없다면? 404 error. 브랜드 상태가 ACTIVE가 아닌 경우? 404 error
+- 조회한 데이터 VO나 DTO에 담아 리턴 → Service → Facade → Controller
+
+**(2) 상품 목록 조회**
+> `클라이언트` → `Controller (GET)` → `Facade` → `Service` → `Repository`
+- Controller: query parameter → ProductSearchCondition 생성
+- Repository: DB조회. 데이터가 하나도 없다면? 200 OK "조회된 내역이 없습니다."
+- 조회한 데이터 VO나 DTO에 담아 리턴 → Service → Facade → Controller
+
+**(3) 상품 정보 조회**
+> `클라이언트` → `Controller (GET)` → `Facade` → `Service` → `Repository`
+- Repository: DB조회. 데이터가 하나도 없다면? 404 error
+- 조회한 데이터 VO나 DTO에 담아 리턴 → Service → Facade → Controller
+
+**(4) 좋아요**
+> `클라이언트` → `Controller` → `Facade` → `Service` → `Repository`
+- Controller: MemberAuthInterceptor 인증 처리 → @LoginMember Member 주입. 인증 실패 시 401 Unauthorized
+- Repository: 해당 상품ID로 USER_ID 데이터가 있는지 확인. 없다면 Insert, 있다면 LIKE_YN이 'N'일 경우만 'Y'로 Update
+
+**(5) 좋아요 취소**
+> `클라이언트` → `Controller` → `Facade` → `Service` → `Repository`
+- Controller: MemberAuthInterceptor 인증 처리 → @LoginMember Member 주입. 인증 실패 시 401 Unauthorized
+- Repository: 해당 상품ID로 USER_ID 데이터가 있는지 확인. 없다면 400 Bad Request, 있다면 LIKE_YN이 'Y'일 경우만 'N'으로 Update
+
+**(6) 좋아요한 상품 목록 조회**
+> `클라이언트` → `Controller` → `Facade` → `Service` → `Repository`
+- Controller: MemberAuthInterceptor 인증 처리 → @LoginMember Member 주입. 인증 실패 시 401 Unauthorized
+- Repository: 해당 USER_ID로 좋아요 한 목록 조회
+- 조회한 데이터 VO나 DTO에 담아 리턴 → Service → Facade → Controller
+
+**(7) 장바구니 담기**
+> `클라이언트` → `Controller` → `Facade` → `Service` → `Repository`
+- Controller: MemberAuthInterceptor 인증 처리 → @LoginMember Member 주입. 인증 실패 시 401 Unauthorized
+- Repository: 해당 상품+옵션의 재고가 있는지 확인. 재고가 부족하면 400 Bad Request, 재고가 있다면 Cart 테이블에 데이터 추가
+- 기존에 동일한 상품+옵션이 장바구니에 있다면 수량만 증가시킨다. (합산 수량 > 재고 시 400 Bad Request)
+
+**(8) 주문 요청**
+> `클라이언트` → `Controller` → `Facade` → `Service` → `Repository`
+- Controller: MemberAuthInterceptor 인증 처리 → @LoginMember Member 주입. 인증 실패 시 401 Unauthorized
+- Repository:
+  - 주문 항목별 재고 검증 및 차감. 재고 부족 시 400 Bad Request
+  - 주문 데이터 + 스냅샷(상품명, 옵션명, 브랜드명, 판매가, 공급가, 배송비, 수량) 생성
+  - 장바구니에서 주문한 경우 해당 장바구니 항목 삭제
+  - 실패 시 @Transactional 롤백으로 재고 자동 복원 (결제 기능 없음)
+
+**(9) 주문 목록 조회**
+> `클라이언트` → `Controller (GET)` → `Facade` → `Service` → `Repository`
+- Controller: MemberAuthInterceptor 인증 처리 → @LoginMember Member 주입. 인증 실패 시 401 Unauthorized
+- Facade: startAt, endAt 필수 파라미터. 없으면 400 Bad Request
+- Repository: DB조회. 데이터가 하나도 없다면? 200 OK "조회된 내역이 없습니다."
+- 조회한 데이터 VO나 DTO에 담아 리턴 → Service → Facade → Controller
+
+**(10) 주문건에 대한 상세 정보 조회**
+> `클라이언트` → `Controller (GET)` → `Facade` → `Service` → `Repository`
+- Controller: MemberAuthInterceptor 인증 처리 → @LoginMember Member 주입. 인증 실패 시 401 Unauthorized
+- Repository: DB조회. 주문이 존재하지 않거나 본인 주문이 아닌 경우 404 Not Found
+- 조회한 데이터 VO나 DTO에 담아 리턴 → Service → Facade → Controller
+
+#### 어드민
+
+아래 상세 요구사항 참고
 
 2) 클래스 다이어그램
 - 하나의 클래스는 하나의 역할만 하도록 설계한다.
