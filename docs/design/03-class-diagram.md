@@ -81,16 +81,8 @@ classDiagram
         -String description
         -BrandStatus status
         +withId(Long, String, String, BrandStatus) Brand$
+        <<BrandStatus>> PENDING / ACTIVE / WITHDRAWN
     }
-
-    class BrandStatus {
-        <<enumeration>>
-        PENDING
-        ACTIVE
-        WITHDRAWN
-    }
-
-    Brand --> BrandStatus
 
     class Product {
         -Long id
@@ -110,24 +102,9 @@ classDiagram
         +calculateSupplyPrice(int price, MarginType marginType, int marginValue) int$
         +incrementLikeCount() void
         +decrementLikeCount() void
+        <<MarginType>> AMOUNT / RATE
+        <<ProductStatus>> ON_SALE / SOLD_OUT / DISCONTINUED
     }
-
-    class MarginType {
-        <<enumeration>>
-        AMOUNT
-        RATE
-    }
-
-    Product --> MarginType
-
-    class ProductStatus {
-        <<enumeration>>
-        ON_SALE
-        SOLD_OUT
-        DISCONTINUED
-    }
-
-    Product --> ProductStatus
 
     class ProductOption {
         -Long id
