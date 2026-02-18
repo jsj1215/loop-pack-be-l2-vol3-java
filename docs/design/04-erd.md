@@ -101,7 +101,10 @@ erDiagram
     ORDERS {
         bigint id PK
         bigint member_id "회원 ID (논리적 참조: MEMBER)"
+        bigint member_coupon_id "사용된 회원쿠폰 ID (nullable, 논리적 참조: MEMBER_COUPON)"
         int total_amount "총 주문금액"
+        int discount_amount "쿠폰 할인 금액"
+        int used_points "사용 포인트"
         datetime created_at "생성일시"
         varchar created_by "생성자"
         datetime updated_at "수정일시"
@@ -114,6 +117,7 @@ erDiagram
         bigint id PK
         bigint order_id "주문 ID (논리적 참조: ORDERS)"
         bigint product_id "상품 ID (논리적 참조: PRODUCT, 참고용)"
+        bigint brand_id "브랜드 ID (스냅샷, 쿠폰 적용 대상 판별용)"
         varchar product_name "상품명 (스냅샷)"
         varchar option_name "옵션명 (스냅샷)"
         varchar brand_name "브랜드명 (스냅샷)"
@@ -121,6 +125,70 @@ erDiagram
         int supply_price "공급가 (스냅샷)"
         int shipping_fee "배송비 (스냅샷)"
         int quantity "주문 수량"
+        datetime created_at "생성일시"
+        varchar created_by "생성자"
+        datetime updated_at "수정일시"
+        varchar updated_by "수정자"
+        datetime deleted_at "삭제일시 (soft delete)"
+        varchar deleted_by "삭제자"
+    }
+
+    POINT {
+        bigint id PK
+        bigint member_id "회원 ID (논리적 참조: MEMBER)"
+        int balance "포인트 잔액"
+        datetime created_at "생성일시"
+        varchar created_by "생성자"
+        datetime updated_at "수정일시"
+        varchar updated_by "수정자"
+        datetime deleted_at "삭제일시 (soft delete)"
+        varchar deleted_by "삭제자"
+    }
+
+    POINT_HISTORY {
+        bigint id PK
+        bigint member_id "회원 ID (논리적 참조: MEMBER)"
+        varchar type "포인트 유형 (CHARGE/USE)"
+        int amount "변동 금액"
+        int balance_after "변동 후 잔액"
+        varchar description "설명"
+        bigint order_id "주문 ID (nullable, USE 시)"
+        datetime created_at "생성일시"
+        varchar created_by "생성자"
+        datetime updated_at "수정일시"
+        varchar updated_by "수정자"
+        datetime deleted_at "삭제일시 (soft delete)"
+        varchar deleted_by "삭제자"
+    }
+
+    COUPON {
+        bigint id PK
+        varchar name "쿠폰명"
+        varchar coupon_scope "적용 범위 (PRODUCT/BRAND/CART)"
+        bigint target_id "적용 대상 ID (PRODUCT/BRAND의 ID, CART일 때 null)"
+        varchar discount_type "할인 유형 (FIXED_AMOUNT/FIXED_RATE)"
+        int discount_value "할인 값 (금액 또는 비율%)"
+        int min_order_amount "최소 주문 금액 조건"
+        int max_discount_amount "최대 할인 금액 (FIXED_RATE 시 상한)"
+        int total_quantity "총 발행 수량"
+        int issued_quantity "발급된 수량"
+        datetime valid_from "유효기간 시작"
+        datetime valid_to "유효기간 종료"
+        datetime created_at "생성일시"
+        varchar created_by "생성자"
+        datetime updated_at "수정일시"
+        varchar updated_by "수정자"
+        datetime deleted_at "삭제일시 (soft delete)"
+        varchar deleted_by "삭제자"
+    }
+
+    MEMBER_COUPON {
+        bigint id PK
+        bigint member_id "회원 ID (논리적 참조: MEMBER)"
+        bigint coupon_id "쿠폰 ID (논리적 참조: COUPON)"
+        varchar status "쿠폰 상태 (AVAILABLE/USED)"
+        bigint order_id "사용된 주문 ID (nullable, USED 시)"
+        datetime used_at "사용 일시 (nullable)"
         datetime created_at "생성일시"
         varchar created_by "생성자"
         datetime updated_at "수정일시"
@@ -137,6 +205,10 @@ erDiagram
     PRODUCT_OPTION ||--o{ CART_ITEM : "1:N 옵션은 여러 장바구니에 담길 수 있다"
     MEMBER ||--o{ ORDERS : "1:N 회원은 여러 주문을 가진다"
     ORDERS ||--o{ ORDER_ITEM : "1:N 주문은 여러 주문항목을 가진다"
+    MEMBER ||--o| POINT : "1:1 회원은 포인트를 가진다"
+    MEMBER ||--o{ POINT_HISTORY : "1:N 회원은 여러 포인트 이력을 가진다"
+    MEMBER ||--o{ MEMBER_COUPON : "1:N 회원은 여러 쿠폰을 발급받는다"
+    COUPON ||--o{ MEMBER_COUPON : "1:N 쿠폰은 여러 회원에게 발급된다"
 ```
 
 ---
@@ -174,11 +246,47 @@ erDiagram
 ### ORDERS
 - 테이블명 `ORDERS` 사용 (ORDER는 SQL 예약어)
 - `total_amount`: 주문 시점의 총 금액
+- `discount_amount`: 쿠폰 할인 금액. 쿠폰 미사용 시 0
+- `member_coupon_id`: 사용된 회원쿠폰 ID. 쿠폰 미사용 시 null
+- `used_points`: 주문 시 사용한 포인트. 0이면 포인트 미사용
+- 실결제금액 = totalAmount - discountAmount - usedPoints
+
+### POINT
+- `member_id`: 1:1 관계 (UNIQUE). 회원당 하나의 포인트 잔액 관리
+- `balance`: 현재 포인트 잔액. 충전 시 증가, 사용 시 차감. 음수 불가
+
+### POINT_HISTORY
+- 포인트 변동 이력 테이블 (충전/사용)
+- `type`: CHARGE(충전) / USE(사용)
+- `amount`: 변동 금액 (항상 양수)
+- `balance_after`: 변동 후 잔액
+- `description`: 변동 사유 (예: "회원가입 초기 지급", "주문 포인트 사용")
+- `order_id`: USE 타입일 때 해당 주문 ID. CHARGE 시 null
 
 ### ORDER_ITEM
 - **스냅샷 테이블**: 주문 시점의 상품/옵션/브랜드/가격 정보를 그대로 복사
 - 원본 상품이 변경/삭제되어도 주문 이력에 영향 없음
 - `product_id`: 참고용 원본 상품 참조. 스냅샷 독립성은 유지하되, 통계/분석/상품 링크에 활용. 물리 FK 없음
+- `brand_id`: 브랜드 ID 스냅샷. 브랜드 쿠폰 적용 대상 판별에 사용
+
+### COUPON
+- 쿠폰 템플릿 테이블. 어드민이 생성하며, 쿠폰의 규칙과 수량을 관리
+- `coupon_scope`: 적용 범위 (PRODUCT: 특정 상품, BRAND: 특정 브랜드, CART: 장바구니 전체)
+- `target_id`: PRODUCT일 때 상품 ID, BRAND일 때 브랜드 ID, CART일 때 null
+- `discount_type`: 할인 유형 (FIXED_AMOUNT: 정액 할인, FIXED_RATE: 정률 할인)
+- `discount_value`: 정액일 때 할인 금액, 정률일 때 할인 비율(%)
+- `min_order_amount`: 최소 주문 금액 조건. 적용 대상 금액이 이 값 미만이면 쿠폰 사용 불가
+- `max_discount_amount`: 정률 쿠폰의 최대 할인 금액 상한
+- `total_quantity`: 총 발행 가능 수량
+- `issued_quantity`: 현재까지 발급된 수량. 다운로드 시 증가
+- `valid_from`, `valid_to`: 쿠폰 유효기간
+
+### MEMBER_COUPON
+- 회원에게 발급된 개별 쿠폰 인스턴스
+- `member_id + coupon_id` UNIQUE: 동일 쿠폰 중복 다운로드 방지
+- `status`: AVAILABLE(사용 가능), USED(사용 완료)
+- `order_id`: USED 상태일 때 사용된 주문 ID
+- `used_at`: 사용 일시
 
 ---
 
@@ -194,6 +302,11 @@ erDiagram
 | **ORDER 테이블명** | ORDERS | SQL 예약어 충돌 회피 |
 | **물리 FK 미사용** | 논리적 참조만 유지 | 쓰기 성능 확보, Soft Delete 호환, DB 분리 대비 |
 | **ORDER_ITEM 참조** | order_id + product_id (참고용) | 스냅샷 독립성 유지 + 통계/분석/상품 링크 활용 |
+| **포인트 관리** | POINT + POINT_HISTORY 분리 | 잔액과 이력을 독립 관리, 감사 추적 가능 |
+| **포인트 ↔ Member 분리** | 별도 도메인으로 관리 | 관심사 분리, Member 도메인 비대화 방지 |
+| **쿠폰 구조** | COUPON(템플릿) + MEMBER_COUPON(발급) 분리 | 수량/규칙은 템플릿에서, 개별 상태는 발급 테이블에서 관리 |
+| **쿠폰 적용 범위** | PRODUCT/BRAND/CART 3단계 | 상품/브랜드/전체 각각 독립적 할인 정책 |
+| **OrderItem에 brandId 추가** | 스냅샷 필드로 brandId 포함 | 브랜드 쿠폰 적용 대상 판별에 사용 |
 
 ---
 
@@ -211,3 +324,9 @@ erDiagram
 | CART_ITEM | member_id, product_option_id (UNIQUE) | 중복 장바구니 방지 + 조회 |
 | ORDERS | member_id, created_at | 기간별 주문 목록 조회 |
 | ORDER_ITEM | order_id | 주문 상세 조회 |
+| POINT | member_id (UNIQUE) | 회원별 포인트 조회 |
+| POINT_HISTORY | member_id, created_at | 회원별 이력 조회 |
+| COUPON | coupon_scope, target_id | 범위+대상 기반 쿠폰 조회 |
+| COUPON | valid_from, valid_to | 유효기간 내 쿠폰 필터링 |
+| MEMBER_COUPON | member_id, coupon_id (UNIQUE) | 중복 다운로드 방지 |
+| MEMBER_COUPON | member_id, status | 회원별 사용 가능 쿠폰 조회 |
