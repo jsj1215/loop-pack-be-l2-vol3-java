@@ -57,12 +57,17 @@ classDiagram
     ProductFacade --> LikeService
     CartFacade --> CartService
     OrderFacade --> OrderService
+    OrderFacade --> CartService
 
     AdminBrandV1Controller --> AdminBrandFacade
     AdminProductV1Controller --> AdminProductFacade
 
     AdminBrandFacade --> BrandService
+    AdminBrandFacade --> ProductService
+    AdminBrandFacade --> CartService
     AdminProductFacade --> ProductService
+    AdminProductFacade --> BrandService
+    AdminProductFacade --> CartService
 ```
 
 ---
@@ -247,7 +252,6 @@ classDiagram
     class OrderService {
         -OrderRepository orderRepository
         -ProductRepository productRepository
-        -CartRepository cartRepository
         +createOrder(Member member, List orderItems) Order
         +getOrders(Long memberId, LocalDate startAt, LocalDate endAt, Pageable) Page~Order~
         +getOrderDetail(Long memberId, Long orderId) Order
@@ -294,14 +298,14 @@ classDiagram
     CartService --> ProductRepository
     OrderService --> OrderRepository
     OrderService --> ProductRepository
-    OrderService --> CartRepository
 ```
 
 **설계 포인트**
 - **Repository는 도메인 레이어에 인터페이스로 정의**: DIP 준수. 구현체는 Infrastructure
-- **LikeService → ProductRepository 의존**: 좋아요 등록 시 상품 존재 검증
-- **CartService → ProductRepository 의존**: 장바구니 담기 시 재고 검증
-- **OrderService 의존 범위가 가장 넓음**: ProductRepository(재고), OrderRepository(주문), CartRepository(장바구니 삭제)
+- **Domain Service는 자기 도메인 Repository만 의존하는 것을 원칙으로 함**: 크로스 도메인 조율은 Facade에서 처리
+- **LikeService → ProductRepository 의존**: 좋아요 등록 시 상품 존재 검증 (읽기 전용 검증이므로 허용)
+- **CartService → ProductRepository 의존**: 장바구니 담기 시 재고 검증 (읽기 전용 검증이므로 허용)
+- **OrderService → ProductRepository 의존**: 재고 검증/차감이 주문 생성과 원자적 트랜잭션으로 묶여야 하므로 허용. 장바구니 삭제는 Facade에서 처리
 
 ---
 
@@ -333,6 +337,7 @@ classDiagram
 
     class OrderFacade {
         -OrderService orderService
+        -CartService cartService
         +createOrder(Member member, OrderRequest) OrderInfo
         +getOrders(Member member, LocalDate, LocalDate, Pageable) Page~OrderInfo~
         +getOrderDetail(Member member, Long orderId) OrderDetailInfo
@@ -396,6 +401,7 @@ classDiagram
 
 **설계 포인트**
 - **Facade는 서비스 조율 + 변환 담당**: 인증은 Interceptor/ArgumentResolver에서 처리. Facade는 인증된 Member/Admin을 파라미터로 받음
+- **크로스 도메인 조율은 Facade에서 처리**: 주문 시 장바구니 삭제(`OrderFacade` → `CartService`), 브랜드/상품 삭제 cascade(`AdminBrandFacade` → `ProductService` + `CartService`) 등
 - **Info 객체는 record**: 불변. 도메인 모델 → 응답용 데이터 변환을 `from()` 팩토리로 수행
 - **ProductInfo vs ProductDetailInfo 분리**: 목록용(간략)과 상세용(브랜드+옵션 포함) 구분
 
@@ -552,6 +558,8 @@ classDiagram
 
     class AdminBrandFacade {
         -BrandService brandService
+        -ProductService productService
+        -CartService cartService
         +getBrands(Pageable) Page~BrandInfo~
         +getBrand(Long brandId) BrandInfo
         +createBrand(String name, String description) BrandInfo
@@ -561,6 +569,8 @@ classDiagram
 
     class AdminProductFacade {
         -ProductService productService
+        -BrandService brandService
+        -CartService cartService
         +getProducts(AdminProductSearchCondition, Pageable) Page~ProductInfo~
         +getProduct(Long productId) ProductDetailInfo
         +createProduct(Request) ProductDetailInfo
@@ -575,10 +585,15 @@ classDiagram
     AdminProductV1Controller --> AdminProductFacade
 
     AdminBrandFacade --> BrandService
+    AdminBrandFacade --> ProductService
+    AdminBrandFacade --> CartService
     AdminProductFacade --> ProductService
+    AdminProductFacade --> BrandService
+    AdminProductFacade --> CartService
 ```
 
 **설계 포인트**
 - **LdapAuthService 인터페이스**: DIP 준수. Fake 구현에서 헤더 값(`loopers.admin`) 검증만 수행. AdminAuthInterceptor에서 호출
 - **Service/Repository 공유**: 어드민과 고객 서비스가 동일한 BrandService, ProductService 사용. 비즈니스 로직 중복 없음
 - **AdminFacade는 인증 무관**: Interceptor에서 인증 완료 후 Controller가 @LoginAdmin Admin을 받고, Facade에는 비즈니스 파라미터만 전달
+- **AdminFacade가 크로스 도메인 조율 담당**: 브랜드 삭제 시 `AdminBrandFacade`가 BrandService + ProductService + CartService를 조율, 상품 등록 시 `AdminProductFacade`가 BrandService로 브랜드 존재 확인 후 ProductService에 전달

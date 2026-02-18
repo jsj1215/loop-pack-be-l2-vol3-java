@@ -338,6 +338,7 @@ sequenceDiagram
     participant Controller as OrderV1Controller
     participant Facade as OrderFacade
     participant OrderService as OrderService
+    participant CartService as CartService
     participant ProductRepository as ProductRepository
     participant OrderRepository as OrderRepository
     participant CartRepository as CartRepository
@@ -350,7 +351,7 @@ sequenceDiagram
     end
 
     Controller->>Facade: 인증된 Member + 주문 생성 요청
-    Facade->>OrderService: 주문 생성
+    Facade->>OrderService: 주문 생성 (재고 검증/차감 + 스냅샷 포함)
 
     loop 주문 항목별 재고 검증 및 차감
         OrderService->>ProductRepository: 상품+옵션 ID로 조회
@@ -375,12 +376,13 @@ sequenceDiagram
 
     OrderService->>OrderRepository: 주문 + 주문항목 저장
     OrderRepository-->>OrderService: 저장된 주문 정보
+    OrderService-->>Facade: 주문 정보
 
     opt 장바구니에서 주문한 경우 (cartItemIds 존재)
-        OrderService->>CartRepository: 해당 장바구니 항목 삭제
+        Facade->>CartService: 해당 장바구니 항목 삭제
+        CartService->>CartRepository: 장바구니 항목 삭제
     end
 
-    OrderService-->>Facade: 주문 정보
     Facade-->>Controller: 주문 응답 정보
     Controller-->>Client: 200 OK (OrderResponse)
 ```
@@ -390,11 +392,11 @@ sequenceDiagram
 - 단건/장바구니 주문 통합 엔드포인트: body 내용으로 분기 (cartItemIds[] 또는 productId+optionId+quantity)
 - 실패 시 @Transactional 롤백으로 재고 자동 복원 (명시적 보상 로직 불필요)
 - 스냅샷 필드: 상품명, 옵션명, 브랜드명, 판매가, 공급가, 배송비, 수량
-- 장바구니 주문 완료 후 해당 CartItem 삭제
-- OrderService 의존 범위: ProductRepository, OrderRepository, CartRepository
+- **장바구니 삭제는 Facade에서 CartService를 호출하여 처리**: OrderService는 주문 생성에만 집중, 크로스 도메인 조율은 Facade 책임
+- OrderService 의존 범위: ProductRepository(재고 검증/차감, 원자적 트랜잭션), OrderRepository(주문 저장)
 
 ### 잠재 리스크
-- **트랜잭션 비대화**: 재고 차감 ~ 주문 저장 ~ 장바구니 삭제가 하나의 트랜잭션. 현재 단계에서는 단일 트랜잭션으로 진행하되, 추후 트래픽 증가 시 분리 고려
+- **트랜잭션 비대화**: 재고 차감 ~ 주문 저장이 하나의 트랜잭션. 현재 단계에서는 단일 트랜잭션으로 진행하되, 추후 트래픽 증가 시 분리 고려
 
 ---
 
@@ -686,7 +688,9 @@ sequenceDiagram
     participant Client
     participant Controller as AdminBrandV1Controller
     participant Facade as AdminBrandFacade
-    participant Service as BrandService
+    participant BrandService as BrandService
+    participant ProductService as ProductService
+    participant CartService as CartService
     participant BrandRepo as BrandRepository
     participant ProductRepo as ProductRepository
     participant CartRepo as CartRepository
@@ -699,38 +703,37 @@ sequenceDiagram
     end
 
     Controller->>Facade: 인증된 Admin + 브랜드 삭제 요청
-    Facade->>Service: 브랜드 삭제
-    Service->>BrandRepo: 브랜드 ID로 조회
+
+    Facade->>BrandService: 브랜드 조회
+    BrandService->>BrandRepo: 브랜드 ID로 조회
 
     alt 브랜드가 존재하지 않는 경우
-        BrandRepo-->>Service: 조회 결과 없음
-        Service-->>Controller: 브랜드 없음 예외
+        BrandRepo-->>BrandService: 조회 결과 없음
+        BrandService-->>Controller: 브랜드 없음 예외
         Controller-->>Client: 404 Not Found
     end
 
-    BrandRepo-->>Service: 브랜드 정보
+    BrandRepo-->>BrandService: 브랜드 정보
+    BrandService-->>Facade: 브랜드 정보
 
-    Service->>ProductRepo: 브랜드 소속 전체 상품 조회
-    ProductRepo-->>Service: 상품 목록
+    Facade->>CartService: 브랜드 소속 상품 옵션의 장바구니 항목 삭제
+    CartService->>CartRepo: 장바구니 항목 삭제
 
-    loop 브랜드 소속 상품별 처리
-        Service->>CartRepo: 해당 상품 옵션의 장바구니 항목 삭제
-        Note over Service: 상품 soft delete (deletedAt 세팅)
-        Service->>ProductRepo: 상품 soft delete 처리
-    end
+    Facade->>ProductService: 브랜드 소속 전체 상품 soft delete
+    ProductService->>ProductRepo: 상품 soft delete 처리
 
-    Note over Service: 브랜드 soft delete (deletedAt 세팅)
-    Service->>BrandRepo: 브랜드 soft delete 처리
+    Facade->>BrandService: 브랜드 soft delete
+    BrandService->>BrandRepo: 브랜드 soft delete 처리
 
-    Service-->>Facade: 처리 완료
     Facade-->>Controller: 처리 완료
     Controller-->>Client: 200 OK
 ```
 
 **설계 포인트**
+- **Facade가 크로스 도메인 조율 담당**: AdminBrandFacade가 BrandService + ProductService + CartService를 조율
 - 삭제 전파: 브랜드 → 상품 → 장바구니. 좋아요는 유지
 - 상품/브랜드는 soft delete (deletedAt), 장바구니는 hard delete
-- BrandService 삭제 시에만 ProductRepository, CartRepository에 의존
+- 각 Domain Service는 자기 도메인 Repository만 의존
 
 ### 잠재 리스크
 - 트랜잭션 비대화: 상품이 많은 브랜드 삭제 시 트랜잭션이 커질 수 있음
@@ -826,7 +829,8 @@ sequenceDiagram
     participant Client
     participant Controller as AdminProductV1Controller
     participant Facade as AdminProductFacade
-    participant Service as ProductService
+    participant BrandService as BrandService
+    participant ProductService as ProductService
     participant BrandRepo as BrandRepository
     participant ProductRepo as ProductRepository
 
@@ -838,40 +842,43 @@ sequenceDiagram
     end
 
     Controller->>Facade: 인증된 Admin + 상품 등록 요청
-    Facade->>Service: 상품 생성
-    Service->>BrandRepo: 브랜드 ID로 조회
+
+    Facade->>BrandService: 브랜드 조회
+    BrandService->>BrandRepo: 브랜드 ID로 조회
 
     alt 브랜드가 존재하지 않는 경우
-        BrandRepo-->>Service: 조회 결과 없음
-        Service-->>Controller: 브랜드 없음 예외
+        BrandRepo-->>BrandService: 조회 결과 없음
+        BrandService-->>Controller: 브랜드 없음 예외
         Controller-->>Client: 404 Not Found
     end
 
-    BrandRepo-->>Service: 브랜드 정보
+    BrandRepo-->>BrandService: 브랜드 정보
+    BrandService-->>Facade: 브랜드 정보
 
-    Service->>ProductRepo: 같은 브랜드 내 상품명 중복 확인
+    Facade->>ProductService: 상품 생성 (Brand 전달)
+
+    ProductService->>ProductRepo: 같은 브랜드 내 상품명 중복 확인
 
     alt 같은 브랜드 내 상품명 중복
-        ProductRepo-->>Service: 존재함
-        Service-->>Controller: 중복 예외
+        ProductRepo-->>ProductService: 존재함
+        ProductService-->>Controller: 중복 예외
         Controller-->>Client: 409 Conflict
     end
 
-    ProductRepo-->>Service: 존재하지 않음
+    ProductRepo-->>ProductService: 존재하지 않음
 
-    Note over Service: marginType에 따라 supplyPrice 자동 계산<br/>AMOUNT: price - marginValue<br/>RATE: price - (price × marginRate / 100)
-    Note over Service: 상품 + 상품옵션 생성
-    Service->>ProductRepo: 상품 저장 (옵션 포함)
-    ProductRepo-->>Service: 저장된 상품 정보
-    Service-->>Facade: 상품 정보
+    Note over ProductService: marginType에 따라 supplyPrice 자동 계산<br/>AMOUNT: price - marginValue<br/>RATE: price - (price × marginRate / 100)
+    Note over ProductService: 상품 + 상품옵션 생성
+    ProductService->>ProductRepo: 상품 저장 (옵션 포함)
+    ProductRepo-->>ProductService: 저장된 상품 정보
+    ProductService-->>Facade: 상품 정보
     Facade-->>Controller: 상품 상세 응답 정보
     Controller-->>Client: 201 Created (ProductDetailResponse)
 ```
 
 **설계 포인트**
-- 브랜드 존재 확인 → 상품명 중복 확인 → 공급가 계산 → 저장 순서
+- **Facade가 브랜드 존재 확인을 BrandService에 위임 후 ProductService에 Brand를 전달**: ProductService는 BrandRepository에 의존하지 않음
 - supplyPrice는 입력받지 않고 marginType + marginValue로 자동 계산 (Service 책임)
-- ProductService → BrandRepository 의존: 브랜드 존재 확인
 - 상품 + 옵션 한 번에 저장 (cascade)
 - 같은 브랜드 내 상품명 중복 검증
 
@@ -940,7 +947,8 @@ sequenceDiagram
     participant Client
     participant Controller as AdminProductV1Controller
     participant Facade as AdminProductFacade
-    participant Service as ProductService
+    participant ProductService as ProductService
+    participant CartService as CartService
     participant ProductRepo as ProductRepository
     participant CartRepo as CartRepository
 
@@ -952,28 +960,32 @@ sequenceDiagram
     end
 
     Controller->>Facade: 인증된 Admin + 상품 삭제 요청
-    Facade->>Service: 상품 삭제
-    Service->>ProductRepo: 상품 ID로 조회
+
+    Facade->>ProductService: 상품 조회
+    ProductService->>ProductRepo: 상품 ID로 조회
 
     alt 상품이 존재하지 않는 경우
-        ProductRepo-->>Service: 조회 결과 없음
-        Service-->>Controller: 상품 없음 예외
+        ProductRepo-->>ProductService: 조회 결과 없음
+        ProductService-->>Controller: 상품 없음 예외
         Controller-->>Client: 404 Not Found
     end
 
-    ProductRepo-->>Service: 상품 정보 (옵션 목록 포함)
+    ProductRepo-->>ProductService: 상품 정보 (옵션 목록 포함)
+    ProductService-->>Facade: 상품 정보
 
-    Service->>CartRepo: 해당 상품 옵션의 장바구니 항목 삭제
+    Facade->>CartService: 해당 상품 옵션의 장바구니 항목 삭제
+    CartService->>CartRepo: 장바구니 항목 삭제
 
-    Note over Service: 상품 옵션 soft delete
-    Note over Service: 상품 soft delete
-    Service->>ProductRepo: 상품 soft delete 처리
+    Facade->>ProductService: 상품 soft delete
+    Note over ProductService: 상품 옵션 soft delete
+    Note over ProductService: 상품 soft delete
+    ProductService->>ProductRepo: 상품 soft delete 처리
 
-    Service-->>Facade: 처리 완료
     Facade-->>Controller: 처리 완료
     Controller-->>Client: 200 OK
 ```
 
 **설계 포인트**
+- **Facade가 크로스 도메인 조율 담당**: AdminProductFacade가 ProductService + CartService를 조율
 - 브랜드 삭제 (5)와 동일 정책: 장바구니 hard delete, 좋아요 유지, 상품+옵션 soft delete
-- ProductService → CartRepository 의존: 삭제 시에만 필요
+- 각 Domain Service는 자기 도메인 Repository만 의존
