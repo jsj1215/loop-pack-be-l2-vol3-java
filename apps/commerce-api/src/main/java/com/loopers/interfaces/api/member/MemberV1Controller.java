@@ -3,17 +3,16 @@ package com.loopers.interfaces.api.member;
 import com.loopers.application.member.MemberFacade;
 import com.loopers.application.member.MemberInfo;
 import com.loopers.application.member.MyInfo;
+import com.loopers.domain.member.Member;
 import com.loopers.interfaces.api.ApiResponse;
+import com.loopers.interfaces.api.auth.LoginMember;
 import com.loopers.interfaces.api.member.dto.MemberV1Dto;
-import com.loopers.support.error.CoreException;
-import com.loopers.support.error.ErrorType;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -53,13 +52,9 @@ public class MemberV1Controller {
      * 내 정보조회
      */
     @GetMapping("/me")
-    public ApiResponse<MemberV1Dto.MyInfoResponse> getMyInfo(
-            @RequestHeader(value = HEADER_LOGIN_ID, required = false) String loginId,
-            @RequestHeader(value = HEADER_LOGIN_PW, required = false) String password) {
-        validateAuthHeaders(loginId, password); // 헤더 정보 인증
-
+    public ApiResponse<MemberV1Dto.MyInfoResponse> getMyInfo(@LoginMember Member member) {
         // 내 정보 조회 기능 동작
-        MyInfo info = memberFacade.getMyInfo(loginId, password);
+        MyInfo info = memberFacade.getMyInfo(member);
         return ApiResponse.success(MemberV1Dto.MyInfoResponse.from(info));
     }
 
@@ -68,25 +63,13 @@ public class MemberV1Controller {
      */
     @PatchMapping("/me/password")
     public ApiResponse<Void> changePassword(
-            @RequestHeader(value = HEADER_LOGIN_ID, required = false) String loginId,
-            @RequestHeader(value = HEADER_LOGIN_PW, required = false) String headerPassword,
+            @LoginMember Member member,
             @RequestBody MemberV1Dto.ChangePasswordRequest request,
             HttpServletResponse response) {
-        validateAuthHeaders(loginId, headerPassword); // 헤더 정보 인증
-
         // 비밀번호 변경 기능 동작
-        memberFacade.changePassword(loginId, headerPassword, request.currentPassword(), request.newPassword());
+        memberFacade.changePassword(member, request.currentPassword(), request.newPassword());
 
         response.setHeader(HEADER_LOGIN_PW, request.newPassword()); // 변경된 비밀번호로 헤더 정보 변경
         return ApiResponse.success(null);
-    }
-
-    /**
-     * 헤더 정보 인증 - 빈 값 체크
-     */
-    private void validateAuthHeaders(String loginId, String password) {
-        if (loginId == null || loginId.isBlank() || password == null || password.isBlank()) {
-            throw new CoreException(ErrorType.UNAUTHORIZED, "인증 정보가 필요합니다.");
-        }
     }
 }

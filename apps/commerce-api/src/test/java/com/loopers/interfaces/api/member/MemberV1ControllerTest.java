@@ -4,6 +4,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.loopers.application.member.MemberFacade;
 import com.loopers.application.member.MemberInfo;
 import com.loopers.application.member.MyInfo;
+import com.loopers.config.WebMvcConfig;
+import com.loopers.domain.member.Member;
+import com.loopers.domain.member.MemberService;
+import com.loopers.interfaces.api.auth.LoginMemberArgumentResolver;
+import com.loopers.interfaces.api.auth.MemberAuthInterceptor;
 import com.loopers.interfaces.api.member.dto.MemberV1Dto;
 import com.loopers.support.error.CoreException;
 import com.loopers.support.error.ErrorType;
@@ -13,11 +18,14 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -33,7 +41,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *
  * 테스트 대상: MemberV1Controller (Interfaces Layer)
  * 테스트 유형: 슬라이스 테스트 (Controller만 로드)
- * 테스트 더블: MockBean (MemberFacade)
+ * 테스트 더블: MockBean (MemberFacade, MemberService)
  *
  * 사용 라이브러리:
  * - JUnit 5 (org.junit.jupiter)
@@ -47,6 +55,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *   → Web Layer만 테스트 (Controller, ControllerAdvice, Filter 등)
  *   → Service, Repository 등은 로드하지 않음
  *   → MockMvc를 자동 구성
+ *
+ * - @Import: WebMvcConfig, MemberAuthInterceptor, LoginMemberArgumentResolver를 로드
+ *   → @WebMvcTest는 @Configuration을 자동 로드하지 않으므로 명시적으로 Import
+ *   → Interceptor가 MemberService에 의존하므로 MockBean으로 등록
  *
  * - @MockBean: Spring Context에 Mock 빈을 등록
  *   (org.springframework.boot.test.mock.mockito.MockBean)
@@ -63,6 +75,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * - Docker/DB 불필요
  */
 @WebMvcTest(MemberV1Controller.class)
+@Import({WebMvcConfig.class, MemberAuthInterceptor.class, LoginMemberArgumentResolver.class})
 @DisplayName("MemberV1Controller 단위 테스트")
 class MemberV1ControllerTest {
 
@@ -74,6 +87,9 @@ class MemberV1ControllerTest {
 
     @MockBean
     private MemberFacade memberFacade;
+
+    @MockBean
+    private MemberService memberService;
 
     @Nested
     @DisplayName("POST /api/v1/members/signup")
@@ -214,13 +230,16 @@ class MemberV1ControllerTest {
         @DisplayName("인증 성공 시 200 OK와 마스킹된 내 정보를 반환한다.")
         void returnsOkWithMaskedInfo_whenAuthSuccess() throws Exception {
             // arrange
+            Member mockMember = mock(Member.class);
+            when(memberService.authenticate("testuser1", "Password1!")).thenReturn(mockMember);
+
             MyInfo mockInfo = new MyInfo(
                 "testuser1",
                 "홍길*",  // 마스킹된 이름
                 "test@example.com",
                 "19990101"
             );
-            when(memberFacade.getMyInfo("testuser1", "Password1!")).thenReturn(mockInfo);
+            when(memberFacade.getMyInfo(any(Member.class))).thenReturn(mockInfo);
 
             // act & assert
             mockMvc.perform(get("/api/v1/members/me")
@@ -233,7 +252,7 @@ class MemberV1ControllerTest {
                 .andExpect(jsonPath("$.data.email").value("test@example.com"))
                 .andExpect(jsonPath("$.data.birthDate").value("19990101"));
 
-            verify(memberFacade, times(1)).getMyInfo("testuser1", "Password1!");
+            verify(memberFacade, times(1)).getMyInfo(any(Member.class));
         }
 
         @Test
@@ -264,10 +283,10 @@ class MemberV1ControllerTest {
         }
 
         @Test
-        @DisplayName("Facade에서 UNAUTHORIZED 예외 발생 시 401을 반환한다.")
-        void returnsUnauthorized_whenFacadeThrowsUnauthorized() throws Exception {
+        @DisplayName("인증 실패 시 401을 반환한다.")
+        void returnsUnauthorized_whenAuthenticationFails() throws Exception {
             // arrange
-            when(memberFacade.getMyInfo(anyString(), anyString())).thenThrow(
+            when(memberService.authenticate("testuser1", "WrongPassword!")).thenThrow(
                 new CoreException(ErrorType.UNAUTHORIZED, "인증에 실패했습니다.")
             );
 
@@ -292,6 +311,9 @@ class MemberV1ControllerTest {
         @DisplayName("성공 시 200 OK와 응답 헤더에 새 비밀번호를 반환한다.")
         void returnsOkWithNewPasswordInHeader_whenSuccess() throws Exception {
             // arrange
+            Member mockMember = mock(Member.class);
+            when(memberService.authenticate("testuser1", "Password1!")).thenReturn(mockMember);
+
             MemberV1Dto.ChangePasswordRequest request = new MemberV1Dto.ChangePasswordRequest(
                 "Password1!",
                 "NewPass123!"
@@ -307,7 +329,7 @@ class MemberV1ControllerTest {
                 .andExpect(jsonPath("$.meta.result").value("SUCCESS"))
                 .andExpect(header().string(HEADER_LOGIN_PW, "NewPass123!"));
 
-            verify(memberFacade, times(1)).changePassword("testuser1", "Password1!", "Password1!", "NewPass123!");
+            verify(memberFacade, times(1)).changePassword(any(Member.class), eq("Password1!"), eq("NewPass123!"));
         }
 
         @Test
@@ -327,16 +349,17 @@ class MemberV1ControllerTest {
         }
 
         @Test
-        @DisplayName("Facade에서 UNAUTHORIZED 예외 발생 시 401을 반환한다.")
-        void returnsUnauthorized_whenFacadeThrowsUnauthorized() throws Exception {
+        @DisplayName("인증 실패 시 401을 반환한다.")
+        void returnsUnauthorized_whenAuthenticationFails() throws Exception {
             // arrange
+            when(memberService.authenticate("testuser1", "WrongPassword!")).thenThrow(
+                new CoreException(ErrorType.UNAUTHORIZED, "인증에 실패했습니다.")
+            );
+
             MemberV1Dto.ChangePasswordRequest request = new MemberV1Dto.ChangePasswordRequest(
                 "Password1!",
                 "NewPass123!"
             );
-
-            org.mockito.Mockito.doThrow(new CoreException(ErrorType.UNAUTHORIZED, "인증에 실패했습니다."))
-                .when(memberFacade).changePassword(anyString(), anyString(), anyString(), anyString());
 
             // act & assert
             mockMvc.perform(patch("/api/v1/members/me/password")
@@ -352,13 +375,16 @@ class MemberV1ControllerTest {
         @DisplayName("Facade에서 BAD_REQUEST 예외 발생 시 400을 반환한다.")
         void returnsBadRequest_whenFacadeThrowsBadRequest() throws Exception {
             // arrange
+            Member mockMember = mock(Member.class);
+            when(memberService.authenticate("testuser1", "Password1!")).thenReturn(mockMember);
+
             MemberV1Dto.ChangePasswordRequest request = new MemberV1Dto.ChangePasswordRequest(
                 "WrongPassword!",
                 "NewPass123!"
             );
 
             org.mockito.Mockito.doThrow(new CoreException(ErrorType.BAD_REQUEST, "기존 비밀번호가 일치하지 않습니다."))
-                .when(memberFacade).changePassword(anyString(), anyString(), anyString(), anyString());
+                .when(memberFacade).changePassword(any(Member.class), anyString(), anyString());
 
             // act & assert
             mockMvc.perform(patch("/api/v1/members/me/password")
@@ -374,6 +400,10 @@ class MemberV1ControllerTest {
         @Test
         @DisplayName("요청 본문이 없으면 400을 반환한다.")
         void returnsBadRequest_whenNoRequestBody() throws Exception {
+            // arrange
+            Member mockMember = mock(Member.class);
+            when(memberService.authenticate("testuser1", "Password1!")).thenReturn(mockMember);
+
             // act & assert
             mockMvc.perform(patch("/api/v1/members/me/password")
                     .header(HEADER_LOGIN_ID, "testuser1")

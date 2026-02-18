@@ -27,18 +27,14 @@ public class MemberFacade {
     /**
      * 내 정보 가져오기
      */
-    public MyInfo getMyInfo(String loginId, String rawPassword) {
-        Member member = memberService.authenticate(loginId, rawPassword);
+    public MyInfo getMyInfo(Member member) {
         return MyInfo.from(member);
     }
 
     /**
      * 비밀번호 변경
      */
-    public void changePassword(String loginId, String headerPassword, String currentPassword, String newPassword) {
-        // 정보 맞는지 검증
-        Member member = memberService.authenticate(loginId, headerPassword);
-        // 비밀번호 변경
+    public void changePassword(Member member, String currentPassword, String newPassword) {
         memberService.changePassword(member, currentPassword, newPassword);
     }
 }
