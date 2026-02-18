@@ -144,6 +144,7 @@ classDiagram
         -int totalAmount
         +create(Long memberId, List~OrderItem~ items) Order$
         +calculateTotalAmount() int
+        +validateOwner(Long memberId) void
     }
 
     class OrderItem {

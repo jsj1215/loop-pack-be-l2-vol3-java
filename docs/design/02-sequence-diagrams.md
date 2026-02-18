@@ -464,23 +464,31 @@ sequenceDiagram
 
     Controller->>Facade: 인증된 Member + 주문 상세 조회 요청
     Facade->>OrderService: 주문 상세 조회
-    OrderService->>OrderRepository: 주문 ID + 회원 ID로 조회
+    OrderService->>OrderRepository: 주문 ID로 조회
 
-    alt 주문이 존재하지 않거나 본인 주문이 아닌 경우
+    alt 주문이 존재하지 않는 경우
         OrderRepository-->>OrderService: 조회 결과 없음
         OrderService-->>Controller: 주문 없음 예외
         Controller-->>Client: 404 Not Found
     end
 
     OrderRepository-->>OrderService: 주문 정보 (주문항목 스냅샷 포함)
+
+    Note over OrderService: Order.validateOwner(memberId) 호출
+    alt 본인 주문이 아닌 경우
+        OrderService-->>Controller: 접근 권한 없음 예외
+        Controller-->>Client: 403 Forbidden
+    end
+
     OrderService-->>Facade: 주문 정보
     Facade-->>Controller: 주문 상세 응답 정보
     Controller-->>Client: 200 OK (OrderDetailResponse)
 ```
 
 **설계 포인트**
-- 권한 검증 + 조회를 쿼리 한 번으로 해결: `findByIdAndMemberId`로 본인 주문이 아니면 NOT_FOUND
-- 타인에게 주문 존재 여부조차 노출하지 않음
+- 조회와 인가를 분리: `findById`로 조회 후 `Order.validateOwner(memberId)`로 소유권 검증
+- 존재하지 않으면 404, 본인 주문이 아니면 403 — 인가 의도가 코드에 명시적으로 드러남
+- 도메인 객체가 자기 보호 책임을 가짐 (Order가 소유권 검증 로직 보유)
 - Order + OrderItem(스냅샷) 함께 조회하여 응답
 
 ---
