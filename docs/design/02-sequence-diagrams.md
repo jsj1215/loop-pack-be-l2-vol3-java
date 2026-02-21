@@ -394,8 +394,8 @@ sequenceDiagram
 
         Note over Facade: 소유권 검증 (memberId 일치 확인)
         alt 본인의 쿠폰이 아닌 경우
-            Facade-->>Controller: 접근 권한 없음 예외
-            Controller-->>Client: 403 Forbidden
+            Facade-->>Controller: 쿠폰 없음 예외
+            Controller-->>Client: 404 Not Found
         end
 
         alt 사용 가능 상태가 아닌 경우 (AVAILABLE이 아님)
@@ -566,8 +566,8 @@ sequenceDiagram
 
     Note over OrderService: Order.validateOwner(memberId) 호출
     alt 본인 주문이 아닌 경우
-        OrderService-->>Controller: 접근 권한 없음 예외
-        Controller-->>Client: 403 Forbidden
+        OrderService-->>Controller: 주문 없음 예외
+        Controller-->>Client: 404 Not Found
     end
 
     OrderService-->>Facade: 주문 정보
@@ -577,7 +577,7 @@ sequenceDiagram
 
 **설계 포인트**
 - 조회와 인가를 분리: `findById`로 조회 후 `Order.validateOwner(memberId)`로 소유권 검증
-- 존재하지 않으면 404, 본인 주문이 아니면 403 — 인가 의도가 코드에 명시적으로 드러남
+- 존재하지 않거나 본인 주문이 아니면 동일하게 404 — 리소스 존재 여부를 비노출하여 주문 ID 열거 공격 방지
 - 도메인 객체가 자기 보호 책임을 가짐 (Order가 소유권 검증 로직 보유)
 - Order + OrderItem(스냅샷) 함께 조회하여 응답
 

@@ -43,9 +43,9 @@
 | 좋아요 취소 | `/api/v1/products/{productId}/likes` | PUT | O | 없으면 400, LIKE_YN='Y'면 'N'으로, 이미 'N'이면 멱등 |
 | 좋아요 상품 목록 | `/api/v1/users/{userId}/likes` | GET | O | URI의 userId 무시, 인증된 memberId로 조회 |
 | 장바구니 담기 | `/api/v1/carts` | POST | O | 재고 검증, 동일 옵션 있으면 수량 합산 (합산>재고 시 400) |
-| 주문 요청 | `/api/v1/orders` | POST | O | 재고 검증→차감→쿠폰 검증/할인→스냅샷 생성→장바구니 삭제, @Transactional 롤백 |
+| 주문 요청 | `/api/v1/orders` | POST | O | 재고 검증→차감→쿠폰 검증/할인→포인트 차감→스냅샷 생성→장바구니 삭제, @Transactional 롤백 |
 | 주문 목록 조회 | `/api/v1/orders?startAt=&endAt=` | GET | O | startAt/endAt 필수(없으면 400), 페이징 |
-| 주문 상세 조회 | `/api/v1/orders/{orderId}` | GET | O | findById 후 `Order.validateOwner()` — 미존재 404, 본인 아니면 403 |
+| 주문 상세 조회 | `/api/v1/orders/{orderId}` | GET | O | findById 후 `Order.validateOwner()` — 미존재 또는 본인 아니면 404 |
 | 쿠폰 목록 조회 | `/api/v1/coupons` | GET | X | 유효기간 내 + 수량 남은 쿠폰 목록 |
 | 쿠폰 다운로드 | `/api/v1/coupons/{couponId}/download` | POST | O | 중복 방지(409), 수량 제한 |
 | 내 쿠폰 목록 | `/api/v1/coupons/me` | GET | O | AVAILABLE 상태 쿠폰 |
@@ -89,7 +89,7 @@
 - `addQuantity(quantity)` — 동일 옵션 병합
 
 **Order**: id, memberId, orderItems, totalAmount, discountAmount, memberCouponId, usedPoints
-- `create()`, `calculateTotalAmount()`, `getPaymentAmount()`, `validateOwner(memberId)` — 본인 주문이 아니면 403 Forbidden
+- `create()`, `calculateTotalAmount()`, `getPaymentAmount()`, `validateOwner(memberId)` — 본인 주문이 아니면 404 Not Found
 - 실결제금액 = totalAmount - discountAmount - usedPoints
 
 **OrderItem**: id, brandId, productName, optionName, brandName, price, supplyPrice, shippingFee, quantity — 스냅샷 테이블
@@ -118,10 +118,10 @@
 | Service | 의존하는 Repository |
 |---------|-------------------|
 | BrandService | BrandRepository |
-| ProductService | ProductRepository (+ BrandRepository: 상품 등록 시) |
+| ProductService | ProductRepository |
 | LikeService | LikeRepository, ProductRepository (상품 존재 검증) |
 | CartService | CartRepository, ProductRepository (재고 검증) |
-| OrderService | OrderRepository, ProductRepository (재고 검증/차감), CartRepository (장바구니 삭제) |
+| OrderService | OrderRepository, ProductRepository (재고 검증/차감) |
 | PointService | PointRepository, PointHistoryRepository |
 | CouponService | CouponRepository, MemberCouponRepository |
 
@@ -130,7 +130,7 @@
 | Facade | 의존하는 Service |
 |--------|-----------------|
 | MemberFacade | MemberService, PointService (회원가입 시 초기 포인트 지급, MyInfo에 포인트 잔액 포함) |
-| OrderFacade | OrderService, CartService, PointService, CouponService (주문 시 쿠폰 검증/적용 + 포인트 사용) |
+| OrderFacade | OrderService, CartService, PointService, CouponService (주문 시 재고 검증/차감 + 쿠폰 검증/적용 + 포인트 사용 + 장바구니 삭제) |
 | CouponFacade | CouponService (대고객 쿠폰 조회/다운로드) |
 | AdminCouponFacade | CouponService (어드민 쿠폰 생성/조회) |
 | AdminPointFacade | PointService (어드민 포인트 지급) |
@@ -145,16 +145,18 @@
 - **Facade 역할**: 인증 무관, 서비스 조율 + Domain→Info 변환만 담당
 - **인가 전략 (A+B 조합)**:
   - 목록 조회(주문 목록, 좋아요 목록, 장바구니): 쿼리에서 memberId 필터링 (A방식)
-  - 단건 리소스 접근(주문 상세): 도메인 객체의 `validateOwner(memberId)`로 명시적 인가 검증 (B방식, 403 Forbidden)
+  - 단건 리소스 접근(주문 상세): 도메인 객체의 `validateOwner(memberId)`로 명시적 인가 검증 (B방식, 404 Not Found — 리소스 존재 여부 비노출)
 
 #### 5. ERD 테이블 및 인덱스
 
 | 테이블 | 권장 인덱스 |
 |--------|-----------|
+| BRAND | `status` (어드민 상태별 조회) |
+| PRODUCT | `brand_id`, `name`, `status`, `display_yn` |
 | PRODUCT_LIKE | `member_id + product_id` (UNIQUE), `member_id + like_yn` |
 | CART_ITEM | `member_id + product_option_id` (UNIQUE) |
 | ORDERS | `member_id + created_at` (기간별 조회) |
-| PRODUCT | `brand_id`, `name`, `status`, `display_yn` |
+| ORDER_ITEM | `order_id` (주문 상세 조회) |
 | POINT | `member_id` (UNIQUE) |
 | POINT_HISTORY | `member_id + created_at` |
 | COUPON | `coupon_scope + target_id`, `valid_from + valid_to` |
