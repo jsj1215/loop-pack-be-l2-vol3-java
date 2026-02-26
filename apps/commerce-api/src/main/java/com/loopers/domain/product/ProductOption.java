@@ -35,6 +35,9 @@ public class ProductOption extends BaseEntity {
     }
 
     public void deductStock(int quantity) {
+        if (quantity <= 0) {
+            throw new CoreException(ErrorType.BAD_REQUEST, "차감 수량은 1개 이상이어야 합니다.");
+        }
         if (!hasEnoughStock(quantity)) {
             throw new CoreException(ErrorType.BAD_REQUEST, "재고가 부족합니다.");
         }
@@ -42,6 +45,9 @@ public class ProductOption extends BaseEntity {
     }
 
     public void restoreStock(int quantity) {
+        if (quantity <= 0) {
+            throw new CoreException(ErrorType.BAD_REQUEST, "복원 수량은 1개 이상이어야 합니다.");
+        }
         this.stockQuantity += quantity;
     }
 }

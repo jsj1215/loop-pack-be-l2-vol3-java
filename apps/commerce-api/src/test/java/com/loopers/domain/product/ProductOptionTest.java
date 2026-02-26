@@ -100,6 +100,38 @@ class ProductOptionTest {
         }
 
         @Test
+        @DisplayName("차감 수량이 0이면 BAD_REQUEST 예외가 발생한다.")
+        void throwsBadRequest_whenDeductZero() {
+            // given
+            ProductOption option = createProductOptionWithId(1L, 1L, "M 사이즈", 10);
+
+            // when
+            CoreException exception = assertThrows(CoreException.class,
+                    () -> option.deductStock(0));
+
+            // then
+            assertAll(
+                    () -> assertThat(exception.getErrorType()).isEqualTo(ErrorType.BAD_REQUEST),
+                    () -> assertThat(option.getStockQuantity()).isEqualTo(10));
+        }
+
+        @Test
+        @DisplayName("차감 수량이 음수이면 BAD_REQUEST 예외가 발생한다.")
+        void throwsBadRequest_whenDeductNegative() {
+            // given
+            ProductOption option = createProductOptionWithId(1L, 1L, "M 사이즈", 10);
+
+            // when
+            CoreException exception = assertThrows(CoreException.class,
+                    () -> option.deductStock(-1));
+
+            // then
+            assertAll(
+                    () -> assertThat(exception.getErrorType()).isEqualTo(ErrorType.BAD_REQUEST),
+                    () -> assertThat(option.getStockQuantity()).isEqualTo(10));
+        }
+
+        @Test
         @DisplayName("재고를 전부 차감하면 0이 된다.")
         void becomesZero_whenAllDeducted() {
             // given
@@ -128,6 +160,38 @@ class ProductOptionTest {
 
             // then
             assertThat(option.getStockQuantity()).isEqualTo(8);
+        }
+
+        @Test
+        @DisplayName("복원 수량이 0이면 BAD_REQUEST 예외가 발생한다.")
+        void throwsBadRequest_whenRestoreZero() {
+            // given
+            ProductOption option = createProductOptionWithId(1L, 1L, "M 사이즈", 5);
+
+            // when
+            CoreException exception = assertThrows(CoreException.class,
+                    () -> option.restoreStock(0));
+
+            // then
+            assertAll(
+                    () -> assertThat(exception.getErrorType()).isEqualTo(ErrorType.BAD_REQUEST),
+                    () -> assertThat(option.getStockQuantity()).isEqualTo(5));
+        }
+
+        @Test
+        @DisplayName("복원 수량이 음수이면 BAD_REQUEST 예외가 발생한다.")
+        void throwsBadRequest_whenRestoreNegative() {
+            // given
+            ProductOption option = createProductOptionWithId(1L, 1L, "M 사이즈", 5);
+
+            // when
+            CoreException exception = assertThrows(CoreException.class,
+                    () -> option.restoreStock(-1));
+
+            // then
+            assertAll(
+                    () -> assertThat(exception.getErrorType()).isEqualTo(ErrorType.BAD_REQUEST),
+                    () -> assertThat(option.getStockQuantity()).isEqualTo(5));
         }
 
         @Test
