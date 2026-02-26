@@ -17,6 +17,10 @@ public class CartService {
     private final ProductRepository productRepository;
 
     public CartItem addToCart(Long memberId, Long productOptionId, int quantity) {
+        if (quantity <= 0) {
+            throw new CoreException(ErrorType.BAD_REQUEST, "수량은 1개 이상이어야 합니다.");
+        }
+
         ProductOption option = productRepository.findOptionById(productOptionId)
                 .orElseThrow(() -> new CoreException(ErrorType.NOT_FOUND, "상품 옵션을 찾을 수 없습니다."));
 

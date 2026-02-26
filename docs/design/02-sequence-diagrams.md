@@ -286,6 +286,12 @@ sequenceDiagram
 
     Controller->>Facade: 인증된 Member + 장바구니 담기 요청
     Facade->>CartService: 장바구니에 상품 추가
+
+    alt 수량이 0 이하
+        CartService-->>Controller: 수량 오류 예외
+        Controller-->>Client: 400 Bad Request "수량은 1개 이상이어야 합니다"
+    end
+
     CartService->>ProductRepository: 상품+옵션 ID로 조회
 
     alt 상품 또는 옵션이 존재하지 않는 경우
@@ -322,6 +328,7 @@ sequenceDiagram
 ```
 
 **설계 포인트**
+- 수량 검증이 가장 먼저 수행: 0 이하 수량은 재고 조회 없이 즉시 거부
 - 재고 검증이 두 번 발생: 신규 담기 시 `요청 수량 > 재고`, 기존 상품 병합 시 `합산 수량 > 재고`
 - 장바구니 단위는 **상품+옵션 조합**: 같은 상품이라도 옵션이 다르면 별도 CartItem
 - 동일 옵션이 이미 있으면 수량만 증가 (옵션 없는 구조이므로 수량 병합)

@@ -150,6 +150,44 @@ class CartServiceTest {
         }
 
         @Test
+        @DisplayName("수량이 0이면 BAD_REQUEST 예외가 발생한다.")
+        void throwsBadRequest_whenQuantityIsZero() {
+            // given
+            Long memberId = 1L;
+            Long productOptionId = 10L;
+            int quantity = 0;
+
+            // when
+            CoreException exception = assertThrows(CoreException.class,
+                    () -> cartService.addToCart(memberId, productOptionId, quantity));
+
+            // then
+            assertAll(
+                    () -> assertThat(exception.getErrorType()).isEqualTo(ErrorType.BAD_REQUEST),
+                    () -> verify(productRepository, never()).findOptionById(any()),
+                    () -> verify(cartRepository, never()).save(any(CartItem.class)));
+        }
+
+        @Test
+        @DisplayName("수량이 음수이면 BAD_REQUEST 예외가 발생한다.")
+        void throwsBadRequest_whenQuantityIsNegative() {
+            // given
+            Long memberId = 1L;
+            Long productOptionId = 10L;
+            int quantity = -1;
+
+            // when
+            CoreException exception = assertThrows(CoreException.class,
+                    () -> cartService.addToCart(memberId, productOptionId, quantity));
+
+            // then
+            assertAll(
+                    () -> assertThat(exception.getErrorType()).isEqualTo(ErrorType.BAD_REQUEST),
+                    () -> verify(productRepository, never()).findOptionById(any()),
+                    () -> verify(cartRepository, never()).save(any(CartItem.class)));
+        }
+
+        @Test
         @DisplayName("존재하지 않는 상품 옵션이면 NOT_FOUND 예외가 발생한다.")
         void throwsNotFound_whenOptionNotExists() {
             // given

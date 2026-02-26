@@ -53,7 +53,7 @@
 **(7) 장바구니 담기**
 > `클라이언트` → `Controller` → `Facade` → `Service` → `Repository`
 - Controller: MemberAuthInterceptor 인증 처리 → @LoginMember Member 주입. 인증 실패 시 401 Unauthorized
-- Repository: 해당 상품+옵션의 재고가 있는지 확인. 재고가 부족하면 400 Bad Request, 재고가 있다면 Cart 테이블에 데이터 추가
+- Service: 수량이 0 이하이면 400 Bad Request. 해당 상품+옵션의 재고가 있는지 확인. 재고가 부족하면 400 Bad Request, 재고가 있다면 Cart 테이블에 데이터 추가
 - 기존에 동일한 상품+옵션이 장바구니에 있다면 수량만 증가시킨다. (합산 수량 > 재고 시 400 Bad Request)
 
 **(8) 주문 요청**
