@@ -49,7 +49,7 @@ class MyInfoTest {
             when(mockMember.getBirthDate()).thenReturn("19990101");
 
             // when
-            MyInfo info = MyInfo.from(mockMember);
+            MyInfo info = MyInfo.from(mockMember, 1000);
 
             // then
             assertAll(
@@ -70,7 +70,7 @@ class MyInfoTest {
             when(mockMember.getBirthDate()).thenReturn("19990101");
 
             // when
-            MyInfo info = MyInfo.from(mockMember);
+            MyInfo info = MyInfo.from(mockMember, 1000);
 
             // then
             assertThat(info.name()).isEqualTo("홍*");
@@ -87,7 +87,7 @@ class MyInfoTest {
             when(mockMember.getBirthDate()).thenReturn("19990101");
 
             // when
-            MyInfo info = MyInfo.from(mockMember);
+            MyInfo info = MyInfo.from(mockMember, 1000);
 
             // then
             assertThat(info.name()).isEqualTo("가나다라마바사아자*");
@@ -105,14 +105,15 @@ class MyInfoTest {
                     new BirthDate("19990101"));
 
             // when
-            MyInfo info = MyInfo.from(member);
+            MyInfo info = MyInfo.from(member, 5000);
 
             // then
             assertAll(
                     () -> assertThat(info.loginId()).isEqualTo("testuser1"),
                     () -> assertThat(info.name()).isEqualTo("홍길*"),
                     () -> assertThat(info.email()).isEqualTo("test@example.com"),
-                    () -> assertThat(info.birthDate()).isEqualTo("19990101"));
+                    () -> assertThat(info.birthDate()).isEqualTo("19990101"),
+                    () -> assertThat(info.pointBalance()).isEqualTo(5000));
         }
     }
 
@@ -128,14 +129,16 @@ class MyInfoTest {
                     "testuser1",
                     "홍길*",
                     "test@example.com",
-                    "19990101");
+                    "19990101",
+                    1000);
 
             // when & then
             assertAll(
                     () -> assertThat(info.loginId()).isEqualTo("testuser1"),
                     () -> assertThat(info.name()).isEqualTo("홍길*"),
                     () -> assertThat(info.email()).isEqualTo("test@example.com"),
-                    () -> assertThat(info.birthDate()).isEqualTo("19990101"));
+                    () -> assertThat(info.birthDate()).isEqualTo("19990101"),
+                    () -> assertThat(info.pointBalance()).isEqualTo(1000));
         }
     }
 }

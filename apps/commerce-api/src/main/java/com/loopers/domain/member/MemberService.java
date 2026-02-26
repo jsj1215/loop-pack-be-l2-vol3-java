@@ -5,13 +5,10 @@ import com.loopers.support.error.ErrorType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
-
 /*
-    Service 
+    Service
     : 비즈니스 로직을 처리하는 객체
 
-    - @Transactional : 트랜잭션 관리
     - @RequiredArgsConstructor : 생성자 주입
     - @Component : 스프링 빈으로 등록
 
@@ -26,7 +23,6 @@ public class MemberService {
     /*
      * 회원가입
      */
-    @Transactional
     public Member signup(SignupCommand command) {// command는 서비스로 전달하기 위한 객체
 
         // 1. Value Object 생성 (유효성 검사 수행 + trim)
@@ -79,7 +75,6 @@ public class MemberService {
     /*
      * 비밀번호 변경
      */
-    @Transactional
     public void changePassword(Member member, String currentPassword, String newPassword) {
         // 1. 기존 비밀번호 일치 검사
         if (!passwordEncoder.matches(currentPassword, member.getPassword())) {

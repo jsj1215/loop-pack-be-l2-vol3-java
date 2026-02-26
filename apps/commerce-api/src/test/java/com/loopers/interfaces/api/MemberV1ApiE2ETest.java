@@ -1,6 +1,11 @@
 package com.loopers.interfaces.api;
 
-import com.loopers.infrastructure.member.MemberEntity;
+import com.loopers.domain.member.BirthDate;
+import com.loopers.domain.member.Email;
+import com.loopers.domain.member.LoginId;
+import com.loopers.domain.member.Member;
+import com.loopers.domain.member.MemberName;
+import com.loopers.domain.point.PointService;
 import com.loopers.infrastructure.member.MemberJpaRepository;
 import com.loopers.interfaces.api.member.dto.MemberV1Dto;
 import com.loopers.utils.DatabaseCleanUp;
@@ -63,22 +68,41 @@ class MemberV1ApiE2ETest {
         private final MemberJpaRepository memberJpaRepository;
         private final DatabaseCleanUp databaseCleanUp;
         private final PasswordEncoder passwordEncoder;
+        private final PointService pointService;
 
         @Autowired
         public MemberV1ApiE2ETest(
                         TestRestTemplate testRestTemplate,
                         MemberJpaRepository memberJpaRepository,
                         DatabaseCleanUp databaseCleanUp,
-                        PasswordEncoder passwordEncoder) {
+                        PasswordEncoder passwordEncoder,
+                        PointService pointService) {
                 this.testRestTemplate = testRestTemplate;
                 this.memberJpaRepository = memberJpaRepository;
                 this.databaseCleanUp = databaseCleanUp;
                 this.passwordEncoder = passwordEncoder;
+                this.pointService = pointService;
         }
 
         @AfterEach
         void tearDown() {
                 databaseCleanUp.truncateAllTables();
+        }
+
+        private Member createMember(String loginId, String encodedPassword, String name, String email, String birthDate) {
+                return new Member(
+                        new LoginId(loginId),
+                        encodedPassword,
+                        new MemberName(name),
+                        new Email(email),
+                        new BirthDate(birthDate));
+        }
+
+        private Member saveMemberWithPoint(String loginId, String encodedPassword, String name, String email, String birthDate) {
+                Member member = createMember(loginId, encodedPassword, name, email, birthDate);
+                Member savedMember = memberJpaRepository.save(member);
+                pointService.createPoint(savedMember.getId());
+                return savedMember;
         }
 
         @DisplayName("POST /api/v1/members/signup")
@@ -172,7 +196,7 @@ class MemberV1ApiE2ETest {
                 @DisplayName("중복된 로그인 ID이면, 409 CONFLICT를 반환한다.")
                 void fail_whenDuplicateLoginId() {
                         // arrange
-                        MemberEntity existingMember = MemberEntity.create(
+                        Member existingMember = createMember(
                                         "testuser1",
                                         passwordEncoder.encode("Password1!"),
                                         "기존유저",
@@ -286,7 +310,7 @@ class MemberV1ApiE2ETest {
                 @DisplayName("중복된 이메일이면, 409 CONFLICT를 반환한다.")
                 void fail_whenDuplicateEmail() {
                         // arrange
-                        MemberEntity existingMember = MemberEntity.create(
+                        Member existingMember = createMember(
                                         "existing1",
                                         passwordEncoder.encode("Password1!"),
                                         "기존유저",
@@ -352,13 +376,12 @@ class MemberV1ApiE2ETest {
                 @DisplayName("유효한 인증 정보면, 200 OK와 마스킹된 내 정보를 반환한다.")
                 void success_whenValidAuth() {
                         // arrange - 회원 생성
-                        MemberEntity member = MemberEntity.create(
+                        Member member = saveMemberWithPoint(
                                         "testuser1",
                                         passwordEncoder.encode("Password1!"),
                                         "홍길동",
                                         "test@example.com",
                                         "19900101");
-                        memberJpaRepository.save(member);
 
                         HttpHeaders headers = new HttpHeaders();
                         headers.set(HEADER_LOGIN_ID, "testuser1");
@@ -388,13 +411,12 @@ class MemberV1ApiE2ETest {
                 @DisplayName("2글자 이름인 경우, 마지막 글자가 마스킹된다.")
                 void masksLastCharacter_when2CharacterName() {
                         // arrange - 2글자 이름 회원 생성
-                        MemberEntity member = MemberEntity.create(
+                        Member member = saveMemberWithPoint(
                                         "testuser1",
                                         passwordEncoder.encode("Password1!"),
                                         "홍길",
                                         "test@example.com",
                                         "19900101");
-                        memberJpaRepository.save(member);
 
                         HttpHeaders headers = new HttpHeaders();
                         headers.set(HEADER_LOGIN_ID, "testuser1");
@@ -454,7 +476,7 @@ class MemberV1ApiE2ETest {
                 @DisplayName("비밀번호가 일치하지 않으면, 401 UNAUTHORIZED를 반환한다.")
                 void fail_whenPasswordNotMatches() {
                         // arrange - 회원 생성
-                        MemberEntity member = MemberEntity.create(
+                        Member member = createMember(
                                         "testuser1",
                                         passwordEncoder.encode("Password1!"),
                                         "홍길동",
@@ -488,7 +510,7 @@ class MemberV1ApiE2ETest {
                 @DisplayName("유효한 요청이면, 200 OK와 응답 헤더에 새 비밀번호를 반환한다.")
                 void success_whenValidRequest() {
                         // arrange - 회원 생성
-                        MemberEntity member = MemberEntity.create(
+                        Member member = createMember(
                                         "testuser1",
                                         passwordEncoder.encode("Password1!"),
                                         "홍길동",
@@ -521,7 +543,7 @@ class MemberV1ApiE2ETest {
                                                         .isEqualTo("NewPass123!"));
 
                         // 변경된 비밀번호로 인증 확인
-                        MemberEntity updatedMember = memberJpaRepository.findByLoginId("testuser1").orElseThrow();
+                        Member updatedMember = memberJpaRepository.findByLoginId("testuser1").orElseThrow();
                         assertThat(passwordEncoder.matches("NewPass123!", updatedMember.getPassword())).isTrue();
                 }
 
@@ -553,7 +575,7 @@ class MemberV1ApiE2ETest {
                 @DisplayName("헤더 인증에 실패하면, 401 UNAUTHORIZED를 반환한다.")
                 void fail_whenHeaderAuthFails() {
                         // arrange - 회원 생성
-                        MemberEntity member = MemberEntity.create(
+                        Member member = createMember(
                                         "testuser1",
                                         passwordEncoder.encode("Password1!"),
                                         "홍길동",
@@ -587,7 +609,7 @@ class MemberV1ApiE2ETest {
                 @DisplayName("기존 비밀번호가 일치하지 않으면, 400 BAD_REQUEST를 반환한다.")
                 void fail_whenCurrentPasswordNotMatches() {
                         // arrange - 회원 생성
-                        MemberEntity member = MemberEntity.create(
+                        Member member = createMember(
                                         "testuser1",
                                         passwordEncoder.encode("Password1!"),
                                         "홍길동",
@@ -623,7 +645,7 @@ class MemberV1ApiE2ETest {
                 @DisplayName("새 비밀번호가 현재 비밀번호와 동일하면, 400 BAD_REQUEST를 반환한다.")
                 void fail_whenNewPasswordSameAsCurrent() {
                         // arrange - 회원 생성
-                        MemberEntity member = MemberEntity.create(
+                        Member member = createMember(
                                         "testuser1",
                                         passwordEncoder.encode("Password1!"),
                                         "홍길동",
@@ -660,7 +682,7 @@ class MemberV1ApiE2ETest {
                 @DisplayName("새 비밀번호에 생년월일이 포함되면, 400 BAD_REQUEST를 반환한다.")
                 void fail_whenNewPasswordContainsBirthDate() {
                         // arrange - 회원 생성
-                        MemberEntity member = MemberEntity.create(
+                        Member member = createMember(
                                         "testuser1",
                                         passwordEncoder.encode("Password1!"),
                                         "홍길동",
@@ -697,7 +719,7 @@ class MemberV1ApiE2ETest {
                 @DisplayName("새 비밀번호가 유효성 검사에 실패하면, 400 BAD_REQUEST를 반환한다.")
                 void fail_whenNewPasswordInvalid() {
                         // arrange - 회원 생성
-                        MemberEntity member = MemberEntity.create(
+                        Member member = createMember(
                                         "testuser1",
                                         passwordEncoder.encode("Password1!"),
                                         "홍길동",

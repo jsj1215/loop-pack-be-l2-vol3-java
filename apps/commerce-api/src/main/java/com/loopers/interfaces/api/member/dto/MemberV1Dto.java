@@ -39,13 +39,15 @@ public class MemberV1Dto {
             String loginId,
             String name,
             String email,
-            String birthDate) {
+            String birthDate,
+            int pointBalance) {
         public static MyInfoResponse from(MyInfo info) {
             return new MyInfoResponse(
                     info.loginId(),
                     info.name(),
                     info.email(),
-                    info.birthDate());
+                    info.birthDate(),
+                    info.pointBalance());
         }
     }
 

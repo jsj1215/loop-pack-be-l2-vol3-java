@@ -355,7 +355,7 @@ class MemberServiceIntegrationTest {
             memberService.changePassword(signedUpMember, "Password1!", "NewPass123!");
 
             // assert
-            Member member = memberJpaRepository.findByLoginId("testuser1").orElseThrow().toMember();
+            Member member = memberJpaRepository.findByLoginId("testuser1").orElseThrow();
             assertAll(
                     () -> assertThat(member.getPassword()).startsWith("$2a$"),
                     () -> assertThat(member.getPassword()).isNotEqualTo("$2a$10$") // 암호화됨

@@ -11,13 +11,15 @@ public record MyInfo(
         String loginId,
         String name,
         String email,
-        String birthDate) {
-    public static MyInfo from(Member member) {
+        String birthDate,
+        int pointBalance) {
+    public static MyInfo from(Member member, int pointBalance) {
         MemberName memberName = new MemberName(member.getName());
         return new MyInfo(
                 member.getLoginId(),
                 memberName.masked(),
                 member.getEmail(),
-                member.getBirthDate());
+                member.getBirthDate(),
+                pointBalance);
     }
 }

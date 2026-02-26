@@ -7,6 +7,9 @@ import com.loopers.application.member.MyInfo;
 import com.loopers.config.WebMvcConfig;
 import com.loopers.domain.member.Member;
 import com.loopers.domain.member.MemberService;
+import com.loopers.domain.auth.LdapAuthService;
+import com.loopers.interfaces.api.auth.AdminAuthInterceptor;
+import com.loopers.interfaces.api.auth.LoginAdminArgumentResolver;
 import com.loopers.interfaces.api.auth.LoginMemberArgumentResolver;
 import com.loopers.interfaces.api.auth.MemberAuthInterceptor;
 import com.loopers.interfaces.api.member.dto.MemberV1Dto;
@@ -75,7 +78,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * - Docker/DB 불필요
  */
 @WebMvcTest(MemberV1Controller.class)
-@Import({WebMvcConfig.class, MemberAuthInterceptor.class, LoginMemberArgumentResolver.class})
+@Import({WebMvcConfig.class, MemberAuthInterceptor.class, LoginMemberArgumentResolver.class, AdminAuthInterceptor.class, LoginAdminArgumentResolver.class})
 @DisplayName("MemberV1Controller 단위 테스트")
 class MemberV1ControllerTest {
 
@@ -90,6 +93,9 @@ class MemberV1ControllerTest {
 
     @MockBean
     private MemberService memberService;
+
+    @MockBean
+    private LdapAuthService ldapAuthService;
 
     @Nested
     @DisplayName("POST /api/v1/members/signup")
@@ -237,7 +243,8 @@ class MemberV1ControllerTest {
                 "testuser1",
                 "홍길*",  // 마스킹된 이름
                 "test@example.com",
-                "19990101"
+                "19990101",
+                5000
             );
             when(memberFacade.getMyInfo(any(Member.class))).thenReturn(mockInfo);
 

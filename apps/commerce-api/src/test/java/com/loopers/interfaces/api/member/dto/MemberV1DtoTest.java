@@ -133,7 +133,8 @@ class MemberV1DtoTest {
                 "testuser1",
                 "홍길*",
                 "test@example.com",
-                "19990101"
+                "19990101",
+                5000
             );
 
             // when
@@ -144,7 +145,8 @@ class MemberV1DtoTest {
                 () -> assertThat(response.loginId()).isEqualTo("testuser1"),
                 () -> assertThat(response.name()).isEqualTo("홍길*"),
                 () -> assertThat(response.email()).isEqualTo("test@example.com"),
-                () -> assertThat(response.birthDate()).isEqualTo("19990101")
+                () -> assertThat(response.birthDate()).isEqualTo("19990101"),
+                () -> assertThat(response.pointBalance()).isEqualTo(5000)
             );
         }
 
@@ -156,7 +158,8 @@ class MemberV1DtoTest {
                 "testuser1",
                 "홍길*",
                 "test@example.com",
-                "19990101"
+                "19990101",
+                1000
             );
 
             // then
@@ -164,7 +167,8 @@ class MemberV1DtoTest {
                 () -> assertThat(response.loginId()).isEqualTo("testuser1"),
                 () -> assertThat(response.name()).isEqualTo("홍길*"),
                 () -> assertThat(response.email()).isEqualTo("test@example.com"),
-                () -> assertThat(response.birthDate()).isEqualTo("19990101")
+                () -> assertThat(response.birthDate()).isEqualTo("19990101"),
+                () -> assertThat(response.pointBalance()).isEqualTo(1000)
             );
         }
     }

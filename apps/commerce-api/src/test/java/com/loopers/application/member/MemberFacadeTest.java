@@ -3,6 +3,7 @@ package com.loopers.application.member;
 import com.loopers.domain.member.Member;
 import com.loopers.domain.member.MemberService;
 import com.loopers.domain.member.SignupCommand;
+import com.loopers.domain.point.PointService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -53,6 +54,9 @@ class MemberFacadeTest {
 
     @Mock
     private MemberService memberService;
+
+    @Mock
+    private PointService pointService;
 
     @InjectMocks
     private MemberFacade memberFacade;
@@ -174,14 +178,16 @@ class MemberFacadeTest {
     class GetMyInfo {
 
         @Test
-        @DisplayName("인증된 Member로부터 마스킹된 이름으로 MyInfo를 반환한다.")
+        @DisplayName("인증된 Member로부터 마스킹된 이름과 포인트 잔액으로 MyInfo를 반환한다.")
         void returnsMaskedMyInfo() {
             // arrange
             Member mockMember = mock(Member.class);
+            when(mockMember.getId()).thenReturn(1L);
             when(mockMember.getLoginId()).thenReturn("testuser1");
             when(mockMember.getName()).thenReturn("홍길동");
             when(mockMember.getEmail()).thenReturn("test@example.com");
             when(mockMember.getBirthDate()).thenReturn("19990101");
+            when(pointService.getBalance(1L)).thenReturn(5000);
 
             // act
             MyInfo info = memberFacade.getMyInfo(mockMember);
@@ -189,9 +195,10 @@ class MemberFacadeTest {
             // assert
             assertAll(
                     () -> assertThat(info.loginId()).isEqualTo("testuser1"),
-                    () -> assertThat(info.name()).isEqualTo("홍길*"), // 마스킹된 이름
+                    () -> assertThat(info.name()).isEqualTo("홍길*"),
                     () -> assertThat(info.email()).isEqualTo("test@example.com"),
-                    () -> assertThat(info.birthDate()).isEqualTo("19990101"));
+                    () -> assertThat(info.birthDate()).isEqualTo("19990101"),
+                    () -> assertThat(info.pointBalance()).isEqualTo(5000));
         }
 
         @Test
@@ -199,10 +206,12 @@ class MemberFacadeTest {
         void masksLastCharacter_when2CharacterName() {
             // arrange
             Member mockMember = mock(Member.class);
+            when(mockMember.getId()).thenReturn(1L);
             when(mockMember.getLoginId()).thenReturn("testuser1");
             when(mockMember.getName()).thenReturn("홍길");
             when(mockMember.getEmail()).thenReturn("test@example.com");
             when(mockMember.getBirthDate()).thenReturn("19990101");
+            when(pointService.getBalance(1L)).thenReturn(0);
 
             // act
             MyInfo info = memberFacade.getMyInfo(mockMember);
