@@ -57,13 +57,17 @@
 - 기존에 동일한 상품+옵션이 장바구니에 있다면 수량만 증가시킨다. (합산 수량 > 재고 시 400 Bad Request)
 
 **(8) 주문 요청**
-> `클라이언트` → `Controller` → `Facade` → `Service` → `Repository`
+> `클라이언트` → `Controller` → `Facade(OrderFacade)` → `OrderService` + `CouponService` + `PointService` + `CartService`
 - Controller: MemberAuthInterceptor 인증 처리 → @LoginMember Member 주입. 인증 실패 시 401 Unauthorized
-- Repository:
-  - 주문 항목별 재고 검증 및 차감. 재고 부족 시 400 Bad Request
-  - 주문 데이터 + 스냅샷(상품명, 옵션명, 브랜드명, 판매가, 공급가, 배송비, 수량) 생성
-  - 장바구니에서 주문한 경우 해당 장바구니 항목 삭제
-  - 실패 시 @Transactional 롤백으로 재고 자동 복원 (결제 기능 없음)
+- Facade (@Transactional으로 전체 트랜잭션 관리):
+  1. OrderService.prepareOrderItems(): 주문 항목별 재고 검증 및 차감 + 스냅샷 생성. 재고 부족 시 400 Bad Request
+  2. CouponService.calculateCouponDiscount(): 쿠폰 제출 시 소유 검증/유효기간/최소 주문 금액/할인 금액 계산
+  3. OrderService.createOrder(): 주문 데이터 저장
+  4. CouponService.useCoupon(): 쿠폰 사용 처리 (AVAILABLE → USED)
+  5. PointService.usePoint(): 포인트 차감 (잔액 부족 시 400 Bad Request)
+  6. CartService.deleteByProductOptionIds(): 장바구니에서 주문한 항목 삭제
+  - 실패 시 Facade의 @Transactional 롤백으로 전체 자동 복원 (결제 기능 없음)
+  - 실결제금액 = totalAmount - discountAmount - usedPoints
 
 **(9) 주문 목록 조회**
 > `클라이언트` → `Controller (GET)` → `Facade` → `Service` → `Repository`
@@ -180,11 +184,12 @@ Facade는 인증에 관여하지 않으며, 인증된 Member를 파라미터로 
 
 ---
 ### 주문
-(1) 주문 요청 
+(1) 주문 요청
 - 설명 : 고객이 주문을 요청한다.
 - URI : /api/v1/orders
 - METHOD : POST
 - 로그인 필수
+- 파라미터 : 주문 항목(상품옵션ID, 수량), 쿠폰ID(선택), 사용 포인트(선택), 장바구니 아이템ID 목록(선택)
 
 (2) 유저의 주문 목록 조회
 - 설명 : 고객이 주문한 주문목록을 조회한다.
@@ -195,6 +200,27 @@ Facade는 인증에 관여하지 않으며, 인증된 Member를 파라미터로 
 (3) 단일 주문 상세 조회
 - 설명 : 고객의 주문번호 하나에 대한 상세 내역을 조회한다.
 - URI : /api/v1/orders/{orderId}
+- METHOD : GET
+- 로그인 필수
+
+---
+### 쿠폰
+(1) 쿠폰 목록 조회
+- 설명 : 유효기간 내 + 수량 남은 쿠폰 목록을 조회한다.
+- URI : /api/v1/coupons
+- METHOD : GET
+- 로그인 필수 아님.
+
+(2) 쿠폰 다운로드
+- 설명 : 쿠폰을 다운로드한다.
+- URI : /api/v1/coupons/{couponId}/download
+- METHOD : POST
+- 로그인 필수
+- 중복 다운로드 시 409 Conflict, 수량 소진 시 400 Bad Request
+
+(3) 내 쿠폰 목록 조회
+- 설명 : 사용 가능한 내 쿠폰 목록을 조회한다.
+- URI : /api/v1/coupons/me
 - METHOD : GET
 - 로그인 필수
 
@@ -287,6 +313,32 @@ Controller는 고객 서비스와 분리된 별도 어드민 컨트롤러를 사
 - METHOD : DELETE
 - 로그인 필수
 
+(11) 포인트 지급
+- 설명 : 회원에게 포인트를 충전한다.
+- URI : /api-admin/v1/points
+- METHOD : POST
+- 로그인 필수
+- Body : memberId, amount, description
+- 0 이하 금액 400 Bad Request, 회원 없음 404 Not Found
+
+(12) 쿠폰 생성
+- 설명 : 쿠폰을 생성한다.
+- URI : /api-admin/v1/coupons
+- METHOD : POST
+- 로그인 필수
+- Body : name, couponScope, targetId, discountType, discountValue, minOrderAmount, maxDiscountAmount, totalQuantity, validFrom, validTo
+
+(13) 쿠폰 목록 조회
+- 설명 : 전체 쿠폰을 페이징 조회한다.
+- URI : /api-admin/v1/coupons?page=0&size=20
+- METHOD : GET
+- 로그인 필수
+
+(14) 쿠폰 상세 조회
+- 설명 : 쿠폰 상세 + 발급 현황을 조회한다.
+- URI : /api-admin/v1/coupons/{couponId}
+- METHOD : GET
+- 로그인 필수
 
 ---
 ### 3. 설계 반영 사항
@@ -313,6 +365,18 @@ Controller는 고객 서비스와 분리된 별도 어드민 컨트롤러를 사
 #### 조회 정책
 - 목록 조회 시 빈 리스트인 경우 200 OK + "조회된 내역이 없습니다." 메시지 반환 (404 아님)
 - 어드민 상품 검색은 searchType + searchValue 패턴 (AdminProductSearchCondition)
+
+#### Domain Model = JPA Entity 통합
+- 도메인 모델이 JPA 엔티티를 겸한다 (Domain = JPA Entity). Infrastructure Layer에 별도 Entity 클래스 없음
+- Repository 인터페이스는 Domain Layer에, 구현체는 Infrastructure Layer에 위치 (DIP 유지)
+- `from()`/`toXxx()` 변환 보일러플레이트 제거로 Repository 구현체 간소화
+
+#### @Transactional 전략
+- Domain Service에는 `@Transactional`을 사용하지 않음 (DIP 준수 — Domain 레이어가 Spring 프레임워크에 의존하지 않음)
+- 트랜잭션 경계는 Application Layer(Facade)에서 관리
+  - 클래스 레벨: `@Transactional(readOnly = true)` — 조회 메서드 기본
+  - 쓰기 메서드: `@Transactional` 오버라이드
+- 크로스 도메인 작업(주문 생성 등)은 Facade의 단일 트랜잭션으로 전체 롤백 보장
 
 #### 기타
 - 물리적 FK 제약조건 미사용. 참조 무결성은 애플리케이션 레벨에서 검증

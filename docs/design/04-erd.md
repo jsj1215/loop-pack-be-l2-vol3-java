@@ -80,9 +80,7 @@ erDiagram
         bigint product_id "상품 ID (논리적 참조: PRODUCT)"
         varchar like_yn "좋아요 여부 (Y/N)"
         datetime created_at "생성일시"
-        varchar created_by "생성자"
         datetime updated_at "수정일시"
-        varchar updated_by "수정자"
     }
 
     CART_ITEM {
@@ -235,6 +233,7 @@ erDiagram
 - `stock_quantity`: **재고는 옵션 단위로 관리**. 장바구니/주문 시 이 값을 기준으로 검증 및 차감
 
 ### PRODUCT_LIKE
+- **BaseEntity 미상속**: LIKE_YN으로 상태 관리하므로 soft delete 불필요. @Id/@GeneratedValue/@PrePersist/@PreUpdate 직접 관리
 - `member_id + product_id` 복합 유니크 제약 권장
 - `like_yn`: 'Y'/'N'으로 좋아요 상태 관리. 물리 삭제하지 않고 상태 전환
 

@@ -357,7 +357,8 @@ sequenceDiagram
     end
 
     Controller->>Facade: 인증된 Member + 주문 생성 요청
-    Facade->>OrderService: 주문 생성 (재고 검증/차감 + 스냅샷 포함)
+    Note over Facade: @Transactional 시작 — 전체 트랜잭션 관리
+    Facade->>OrderService: prepareOrderItems (재고 검증/차감 + 스냅샷 생성)
 
     loop 주문 항목별 재고 검증 및 차감
         OrderService->>ProductRepository: 상품+옵션 ID로 조회
@@ -383,47 +384,13 @@ sequenceDiagram
     OrderService-->>Facade: 주문 항목(OrderItem) 목록 + totalAmount
 
     opt memberCouponId가 존재하는 경우 (쿠폰 사용)
-        Facade->>CouponService: 회원 쿠폰 조회 (memberCouponId)
-        CouponService->>MemberCouponRepository: 회원 쿠폰 조회
-        MemberCouponRepository-->>CouponService: 회원 쿠폰 정보
-
-        alt 회원 쿠폰이 존재하지 않는 경우
-            CouponService-->>Controller: 쿠폰 없음 예외
-            Controller-->>Client: 404 Not Found
-        end
-
-        Note over Facade: 소유권 검증 (memberId 일치 확인)
-        alt 본인의 쿠폰이 아닌 경우
-            Facade-->>Controller: 쿠폰 없음 예외
-            Controller-->>Client: 404 Not Found
-        end
-
-        alt 사용 가능 상태가 아닌 경우 (AVAILABLE이 아님)
-            CouponService-->>Controller: 쿠폰 사용 불가 예외
-            Controller-->>Client: 400 Bad Request "이미 사용된 쿠폰입니다"
-        end
-
-        Facade->>CouponService: 쿠폰 조회 (couponId)
-        CouponService->>CouponRepository: 쿠폰 조회
-        CouponRepository-->>CouponService: 쿠폰 정보
-
-        alt 쿠폰 유효기간이 만료된 경우
-            CouponService-->>Controller: 쿠폰 만료 예외
-            Controller-->>Client: 400 Bad Request "유효기간이 만료된 쿠폰입니다"
-        end
-
         Note over Facade: 할인 적용 대상 금액 산정 (couponScope별)<br/>CART: totalAmount<br/>PRODUCT: targetId 일치 OrderItem subtotal 합<br/>BRAND: targetId(brandId) 일치 OrderItem subtotal 합
-
-        alt 적용 대상 금액 < 최소 주문 금액
-            Facade-->>Controller: 최소 주문 금액 미충족 예외
-            Controller-->>Client: 400 Bad Request "최소 주문 금액 조건을 충족하지 않습니다"
-        end
-
-        Note over Facade: 할인 금액 계산<br/>FIXED_AMOUNT: discountValue<br/>FIXED_RATE: applicableAmount × discountValue / 100<br/>상한: min(discount, maxDiscountAmount), min(discount, applicableAmount)
+        Facade->>CouponService: calculateCouponDiscount(memberId, memberCouponId, applicableAmount)
+        Note over CouponService: 소유 검증 + 사용 가능 여부 + 유효기간 + 최소 주문 금액 검증
+        CouponService-->>Facade: 할인 금액 (discountAmount)
     end
 
-    Note over Facade: 주문 생성 (discountAmount, memberCouponId 포함)
-    Facade->>OrderService: 주문 저장
+    Facade->>OrderService: createOrder(memberId, orderItems, discountAmount, memberCouponId, usedPoints)
     OrderService->>OrderRepository: 주문 + 주문항목 저장
     OrderRepository-->>OrderService: 저장된 주문 정보
     OrderService-->>Facade: 주문 정보
@@ -458,16 +425,16 @@ sequenceDiagram
 ```
 
 **설계 포인트**
-- 결제 없이 주문 단계에서 완료: 재고 검증 → 차감 → 쿠폰 검증/할인 계산 → 주문 생성 → 쿠폰 사용 → 포인트 사용 → 장바구니 삭제
+- 결제 없이 주문 단계에서 완료: prepareOrderItems(재고 검증/차감/스냅샷) → calculateCouponDiscount → createOrder → useCoupon → usePoint → deleteCart
 - 실결제금액 = totalAmount - discountAmount - usedPoints
 - 단건/장바구니 주문 통합 엔드포인트: body 내용으로 분기 (cartItemIds[] 또는 productId+optionId+quantity)
-- 실패 시 @Transactional 롤백으로 재고 + 쿠폰 + 포인트 자동 복원 (명시적 보상 로직 불필요)
-- 스냅샷 필드: 상품명, 옵션명, 브랜드명, 브랜드ID, 판매가, 공급가, 배송비, 수량
-- **장바구니 삭제는 Facade에서 CartService를 호출하여 처리**: OrderService는 주문 생성에만 집중, 크로스 도메인 조율은 Facade 책임
-- **포인트 사용은 Facade에서 PointService를 호출하여 처리**: usedPoints > 0인 경우에만 포인트 차감 수행
-- **쿠폰 검증/적용은 Facade에서 CouponService를 호출하여 처리**: memberCouponId가 존재하는 경우에만 쿠폰 할인 적용
+- Facade의 @Transactional로 전체 트랜잭션 관리. 실패 시 재고 + 쿠폰 + 포인트 자동 롤백
+- **OrderService를 2단계로 분리**: `prepareOrderItems()`(재고 검증/차감 + 스냅샷 생성) → `createOrder()`(주문 저장). 각 단계의 책임 명확화
+- **쿠폰 할인 계산은 CouponService.calculateCouponDiscount()에 위임**: 소유 검증, 사용 가능 여부, 유효기간, 최소 주문 금액 검증 + 할인 금액 계산을 도메인 서비스가 담당
+- **적용 대상 금액(applicableAmount) 산정은 Facade에 유지**: 주문 아이템(OrderItem) 정보가 필요하므로 쿠폰 도메인이 주문 도메인에 의존하지 않도록 함
+- 장바구니 삭제, 포인트 사용, 쿠폰 사용 처리는 Facade에서 각 Service를 호출하여 조율
 - 주문당 쿠폰 1장만 사용 가능 (포인트와 중복 사용은 가능)
-- OrderService 의존 범위: ProductRepository(재고 검증/차감, 원자적 트랜잭션), OrderRepository(주문 저장)
+- OrderService 의존 범위: ProductRepository(재고 검증/차감), OrderRepository(주문 저장)
 
 ### 할인 금액 계산 로직
 ```

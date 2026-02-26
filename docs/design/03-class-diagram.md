@@ -1,7 +1,9 @@
 # 클래스 다이어그램 - 고객 서비스 + 어드민 서비스
 
-> 기존 Layered Architecture 패턴을 따르며, 도메인 모델과 JPA 엔티티를 분리한다.
+> 기존 Layered Architecture 패턴을 따르며, 도메인 모델이 JPA 엔티티를 겸한다 (Domain = JPA Entity).
+> Infrastructure Layer에 별도 Entity 클래스 없이, Repository 인터페이스(Domain)와 구현체(Infrastructure)로 DIP를 유지한다.
 > 각 클래스는 단일 책임을 가지며, 도메인 모델에 비즈니스 로직을 배치한다.
+> @Transactional은 Facade(Application Layer)에서만 사용하며, Domain Service는 Spring 프레임워크에 의존하지 않는다.
 
 ---
 
@@ -92,22 +94,26 @@ classDiagram
 
 ## Domain 모델
 
-> 도메인 모델은 JPA에 의존하지 않는 순수 객체이며, 비즈니스 로직을 포함한다.
+> 도메인 모델은 JPA 엔티티를 겸하며(@Entity, BaseEntity 상속), 비즈니스 로직을 포함한다.
+> `withId()` 팩토리 메서드는 사용하지 않으며, 테스트에서는 `ReflectionTestUtils.setField()`로 ID를 설정한다.
 
 ```mermaid
 classDiagram
     direction TB
 
     class Brand {
+        <<Entity>>
         -Long id
         -String name
         -String description
         -BrandStatus status
-        +withId(Long, String, String, BrandStatus) Brand$
+        +changeStatus(BrandStatus) void
+        +update(String name, String description) void
         <<BrandStatus>> PENDING / ACTIVE / WITHDRAWN
     }
 
     class Product {
+        <<Entity>>
         -Long id
         -Brand brand
         -String name
@@ -121,26 +127,27 @@ classDiagram
         -ProductStatus status
         -String displayYn
         -List~ProductOption~ options
-        +withId(...) Product$
         +calculateSupplyPrice(int price, MarginType marginType, int marginValue) int$
         +incrementLikeCount() void
         +decrementLikeCount() void
+        +withOptions(List~ProductOption~) Product
         <<MarginType>> AMOUNT / RATE
         <<ProductStatus>> ON_SALE / SOLD_OUT / DISCONTINUED
     }
 
     class ProductOption {
+        <<Entity>>
         -Long id
         -Long productId
         -String optionName
         -int stockQuantity
-        +withId(...) ProductOption$
         +hasEnoughStock(int quantity) boolean
         +deductStock(int quantity) void
         +restoreStock(int quantity) void
     }
 
     class Like {
+        <<Entity - BaseEntity 미상속>>
         -Long id
         -Long memberId
         -Long productId
@@ -152,6 +159,7 @@ classDiagram
     }
 
     class CartItem {
+        <<Entity>>
         -Long id
         -Long memberId
         -Long productOptionId
@@ -161,6 +169,7 @@ classDiagram
     }
 
     class Order {
+        <<Entity>>
         -Long id
         -Long memberId
         -List~OrderItem~ orderItems
@@ -175,6 +184,7 @@ classDiagram
     }
 
     class OrderItem {
+        <<Entity>>
         -Long id
         -Long brandId
         -String productName
@@ -189,6 +199,7 @@ classDiagram
     }
 
     class Point {
+        <<Entity>>
         -Long id
         -Long memberId
         -int balance
@@ -198,6 +209,7 @@ classDiagram
     }
 
     class PointHistory {
+        <<Entity>>
         -Long id
         -Long memberId
         -PointType type
@@ -216,6 +228,7 @@ classDiagram
     }
 
     class Coupon {
+        <<Entity>>
         -Long id
         -String name
         -CouponScope couponScope
@@ -229,7 +242,6 @@ classDiagram
         -ZonedDateTime validFrom
         -ZonedDateTime validTo
         +create(...) Coupon$
-        +withId(...) Coupon$
         +isIssuable() boolean
         +isValid() boolean
         +issue() void
@@ -237,6 +249,7 @@ classDiagram
     }
 
     class MemberCoupon {
+        <<Entity>>
         -Long id
         -Long memberId
         -Long couponId
@@ -368,9 +381,10 @@ classDiagram
     class OrderService {
         -OrderRepository orderRepository
         -ProductRepository productRepository
-        +createOrder(Member member, List orderItems) Order
-        +getOrders(Long memberId, LocalDate startAt, LocalDate endAt, Pageable) Page~Order~
-        +getOrderDetail(Long memberId, Long orderId) Order
+        +prepareOrderItems(List~OrderItemRequest~ itemRequests) List~OrderItem~
+        +createOrder(Long memberId, List~OrderItem~ orderItems, int discountAmount, Long memberCouponId, int usedPoints) Order
+        +findOrders(Long memberId, ZonedDateTime startAt, ZonedDateTime endAt, Pageable) Page~Order~
+        +findOrderDetail(Long memberId, Long orderId) Order
     }
 
     class BrandRepository {
@@ -402,17 +416,17 @@ classDiagram
     class OrderRepository {
         <<interface>>
         +save(Order) Order
-        +findByMemberIdAndDateRange(Long, LocalDate, LocalDate, Pageable) Page~Order~
+        +findByMemberIdAndCreatedAtBetween(Long, ZonedDateTime, ZonedDateTime, Pageable) Page~Order~
         +findByIdAndMemberId(Long, Long) Optional~Order~
     }
 
     class PointService {
         -PointRepository pointRepository
         -PointHistoryRepository pointHistoryRepository
+        +createPoint(Long memberId) Point
         +chargePoint(Long memberId, int amount, String description) void
         +usePoint(Long memberId, int amount, Long orderId) void
         +getBalance(Long memberId) int
-        +createInitialPoint(Long memberId) void
     }
 
     class PointRepository {
@@ -437,6 +451,7 @@ classDiagram
         +getMyAvailableCoupons(Long memberId) List~MemberCoupon~
         +getMemberCoupon(Long memberCouponId) MemberCoupon
         +useCoupon(Long memberCouponId, Long orderId) void
+        +calculateCouponDiscount(Long memberId, Long memberCouponId, int applicableAmount) int
     }
 
     class CouponRepository {
@@ -471,14 +486,17 @@ classDiagram
 
 **설계 포인트**
 - **Repository는 도메인 레이어에 인터페이스로 정의**: DIP 준수. 구현체는 Infrastructure
+- **Domain Service에 @Transactional 미사용**: DIP 준수 — Domain 레이어가 Spring 프레임워크에 의존하지 않음. 트랜잭션 경계는 Facade에서 관리
 - **Domain Service는 자기 도메인 Repository만 의존하는 것을 원칙으로 함**: 크로스 도메인 조율은 Facade에서 처리
 - **LikeService → ProductRepository 의존**: 좋아요 등록 시 상품 존재 검증 (읽기 전용 검증이므로 허용)
 - **CartService → ProductRepository 의존**: 장바구니 담기 시 재고 검증 (읽기 전용 검증이므로 허용)
 - **OrderService → ProductRepository 의존**: 재고 검증/차감이 주문 생성과 원자적 트랜잭션으로 묶여야 하므로 허용. 장바구니 삭제는 Facade에서 처리
 - **PointService**: 포인트 충전/사용/조회를 담당. 자기 도메인 Repository(PointRepository, PointHistoryRepository)만 의존
 - **포인트 사용은 Facade에서 PointService를 호출하여 처리**: OrderFacade가 OrderService + PointService를 조율
-- **CouponService**: 쿠폰 생성/조회/발급/사용을 담당. CouponRepository + MemberCouponRepository 의존
-- **쿠폰 사용은 Facade에서 CouponService를 호출하여 처리**: OrderFacade가 OrderService + CouponService + PointService를 조율
+- **CouponService**: 쿠폰 생성/조회/발급/사용/할인계산을 담당. CouponRepository + MemberCouponRepository 의존
+- **CouponService.calculateCouponDiscount()**: 소유 검증, 사용 가능 여부, 유효기간, 최소 주문 금액 검증 + 할인 금액 계산을 도메인 서비스가 책임. OrderFacade에서 위임 호출
+- **OrderService를 2단계로 분리**: `prepareOrderItems()`(재고 검증/차감 + 스냅샷 생성) → `createOrder()`(주문 저장). 각 단계의 책임 명확화
+- **쿠폰/포인트 사용은 Facade에서 각 Service를 호출하여 처리**: OrderFacade가 OrderService + CouponService + PointService + CartService를 조율
 
 ---
 
@@ -640,6 +658,7 @@ classDiagram
 ```
 
 **설계 포인트**
+- **Facade에 @Transactional 배치**: 클래스 레벨 `@Transactional(readOnly = true)` + 쓰기 메서드에 `@Transactional` 오버라이드. Domain Service가 Spring에 의존하지 않도록 트랜잭션 경계를 Facade에서 관리
 - **Facade는 서비스 조율 + 변환 담당**: 인증은 Interceptor/ArgumentResolver에서 처리. Facade는 인증된 Member/Admin을 파라미터로 받음
 - **크로스 도메인 조율은 Facade에서 처리**: 주문 시 장바구니 삭제(`OrderFacade` → `CartService`), 주문 시 포인트 사용(`OrderFacade` → `PointService`), 주문 시 쿠폰 검증/적용(`OrderFacade` → `CouponService`), 회원가입 시 초기 포인트 지급(`MemberFacade` → `PointService`), 브랜드/상품 삭제 cascade(`AdminBrandFacade` → `ProductService` + `CartService`) 등
 - **Info 객체는 record**: 불변. 도메인 모델 → 응답용 데이터 변환을 `from()` 팩토리로 수행
@@ -649,162 +668,123 @@ classDiagram
 
 ## Infrastructure Layer
 
+> Domain Model = JPA Entity 통합으로 인해 별도의 Infrastructure Entity 클래스는 존재하지 않는다.
+> Infrastructure Layer에는 JpaRepository와 Repository 구현체(RepositoryImpl)만 위치한다.
+> Repository 구현체는 Domain의 Repository 인터페이스를 구현하며, from()/toXxx() 변환 없이 Domain Model을 직접 영속화한다.
+
 ```mermaid
 classDiagram
     direction TB
 
     class BaseEntity {
-        <<abstract>>
+        <<abstract - MappedSuperclass>>
         #Long id
         #ZonedDateTime createdAt
+        #String createdBy
         #ZonedDateTime updatedAt
+        #String updatedBy
         #ZonedDateTime deletedAt
+        #String deletedBy
         #prePersist() void
         #preUpdate() void
         +delete() void
         +restore() void
     }
 
-    class BrandEntity {
-        -String name
-        -String description
-        -String status
-        +from(Brand) BrandEntity$
-        +toBrand() Brand
+    class BrandJpaRepository {
+        <<JpaRepository~Brand, Long~>>
+    }
+    class BrandRepositoryImpl {
+        -BrandJpaRepository brandJpaRepository
+        +save(Brand) Brand
+        +findById(Long) Optional~Brand~
     }
 
-    class ProductEntity {
-        -BrandEntity brand
-        -String name
-        -int price
-        -int supplyPrice
-        -int discountPrice
-        -int shippingFee
-        -int likeCount
-        -String description
-        -String marginType
-        -String status
-        -String displayYn
-        +from(Product) ProductEntity$
-        +toProduct() Product
+    class ProductJpaRepository {
+        <<JpaRepository~Product, Long~>>
+    }
+    class ProductOptionJpaRepository {
+        <<JpaRepository~ProductOption, Long~>>
+    }
+    class ProductRepositoryImpl {
+        -ProductJpaRepository productJpaRepository
+        -ProductOptionJpaRepository productOptionJpaRepository
+        -JPAQueryFactory queryFactory
+        +save(Product) Product
+        +findById(Long) Optional~Product~
+        +search(ProductSearchCondition, Pageable) Page~Product~
+        -assembleWithOptions(List~Product~) List~Product~
     }
 
-    class ProductOptionEntity {
-        -Long productId
-        -String optionName
-        -int stockQuantity
-        +from(ProductOption) ProductOptionEntity$
-        +toProductOption() ProductOption
+    class LikeJpaRepository {
+        <<JpaRepository~Like, Long~>>
+    }
+    class LikeRepositoryImpl {
+        -LikeJpaRepository likeJpaRepository
+        -JPAQueryFactory queryFactory
     }
 
-    class LikeEntity {
-        -Long id
-        -Long memberId
-        -Long productId
-        -String likeYn
-        -ZonedDateTime createdAt
-        -ZonedDateTime updatedAt
-        +from(Like) LikeEntity$
-        +toLike() Like
+    class CartJpaRepository {
+        <<JpaRepository~CartItem, Long~>>
+    }
+    class CartRepositoryImpl {
+        -CartJpaRepository cartJpaRepository
     }
 
-    class CartItemEntity {
-        -Long memberId
-        -Long productOptionId
-        -int quantity
-        +from(CartItem) CartItemEntity$
-        +toCartItem() CartItem
+    class OrderJpaRepository {
+        <<JpaRepository~Order, Long~>>
+    }
+    class OrderRepositoryImpl {
+        -OrderJpaRepository orderJpaRepository
     }
 
-    class OrderEntity {
-        -Long memberId
-        -Long memberCouponId
-        -int totalAmount
-        -int discountAmount
-        +from(Order) OrderEntity$
-        +toOrder() Order
+    class PointJpaRepository {
+        <<JpaRepository~Point, Long~>>
+    }
+    class PointRepositoryImpl {
+        -PointJpaRepository pointJpaRepository
     }
 
-    class OrderItemEntity {
-        -OrderEntity order
-        -Long productId
-        -Long brandId
-        -String productName
-        -String optionName
-        -String brandName
-        -int price
-        -int supplyPrice
-        -int shippingFee
-        -int quantity
-        +from(OrderItem) OrderItemEntity$
-        +toOrderItem() OrderItem
+    class PointHistoryJpaRepository {
+        <<JpaRepository~PointHistory, Long~>>
+    }
+    class PointHistoryRepositoryImpl {
+        -PointHistoryJpaRepository pointHistoryJpaRepository
     }
 
-    class CouponEntity {
-        -String name
-        -String couponScope
-        -Long targetId
-        -String discountType
-        -int discountValue
-        -int minOrderAmount
-        -int maxDiscountAmount
-        -int totalQuantity
-        -int issuedQuantity
-        -ZonedDateTime validFrom
-        -ZonedDateTime validTo
-        +from(Coupon) CouponEntity$
-        +toCoupon() Coupon
+    class CouponJpaRepository {
+        <<JpaRepository~Coupon, Long~>>
+    }
+    class CouponRepositoryImpl {
+        -CouponJpaRepository couponJpaRepository
     }
 
-    class MemberCouponEntity {
-        -Long memberId
-        -Long couponId
-        -String status
-        -Long orderId
-        -ZonedDateTime usedAt
-        +from(MemberCoupon) MemberCouponEntity$
-        +toMemberCoupon() MemberCoupon
+    class MemberCouponJpaRepository {
+        <<JpaRepository~MemberCoupon, Long~>>
+    }
+    class MemberCouponRepositoryImpl {
+        -MemberCouponJpaRepository memberCouponJpaRepository
     }
 
-    class PointEntity {
-        -Long memberId
-        -int balance
-        +from(Point) PointEntity$
-        +toPoint() Point
-    }
-
-    class PointHistoryEntity {
-        -Long memberId
-        -String type
-        -int amount
-        -int balanceAfter
-        -String description
-        -Long orderId
-        +from(PointHistory) PointHistoryEntity$
-        +toPointHistory() PointHistory
-    }
-
-    BaseEntity <|-- BrandEntity
-    BaseEntity <|-- ProductEntity
-    BaseEntity <|-- ProductOptionEntity
-    BaseEntity <|-- CartItemEntity
-    BaseEntity <|-- OrderEntity
-    BaseEntity <|-- OrderItemEntity
-    BaseEntity <|-- PointEntity
-    BaseEntity <|-- PointHistoryEntity
-    BaseEntity <|-- CouponEntity
-    BaseEntity <|-- MemberCouponEntity
-
-    ProductEntity --> BrandEntity : ManyToOne
-    ProductOptionEntity --> ProductEntity : ManyToOne
-    OrderItemEntity --> OrderEntity : ManyToOne
+    BrandRepositoryImpl --> BrandJpaRepository
+    ProductRepositoryImpl --> ProductJpaRepository
+    ProductRepositoryImpl --> ProductOptionJpaRepository
+    LikeRepositoryImpl --> LikeJpaRepository
+    CartRepositoryImpl --> CartJpaRepository
+    OrderRepositoryImpl --> OrderJpaRepository
+    PointRepositoryImpl --> PointJpaRepository
+    PointHistoryRepositoryImpl --> PointHistoryJpaRepository
+    CouponRepositoryImpl --> CouponJpaRepository
+    MemberCouponRepositoryImpl --> MemberCouponJpaRepository
 ```
 
 **설계 포인트**
-- **모든 Entity는 BaseEntity 상속**: id, createdAt, updatedAt, deletedAt 공통 관리. 단, **LikeEntity는 예외** — LIKE_YN으로 상태 관리하므로 soft delete 불필요, BaseEntity 상속 없이 독립 관리
-- **Entity ↔ Domain 변환**: `from()` / `toXxx()` 메서드로 양방향 변환
-- **JPA 연관관계**: ProductEntity → BrandEntity (ManyToOne), ProductOptionEntity → ProductEntity (ManyToOne), OrderItemEntity → OrderEntity (ManyToOne)
-- **LikeEntity, CartItemEntity**: memberId를 Long으로 보유 (Member 엔티티와 직접 연관관계 대신 ID 참조)
+- **Domain Model이 JPA Entity를 겸함**: 별도 Infrastructure Entity 없이 Domain Model에 @Entity, @Table, @Column 등 JPA 어노테이션 직접 사용
+- **BaseEntity 상속**: 모든 도메인 모델은 BaseEntity 상속 (id, createdAt, createdBy, updatedAt, updatedBy, deletedAt, deletedBy). 단, **Like는 예외** — LIKE_YN으로 상태 관리하므로 soft delete 불필요, @Id/@GeneratedValue/@PrePersist/@PreUpdate 직접 관리
+- **from()/toXxx() 변환 제거**: Repository 구현체에서 Domain Model을 직접 영속화/조회. 코드량 대폭 감소
+- **JPA 연관관계**: Product → Brand (@ManyToOne LAZY), Order ↔ OrderItem (@OneToMany cascade ALL, orphanRemoval), OrderItem → Order (@ManyToOne LAZY)
+- **Product.options는 @Transient**: 옵션은 별도 쿼리(IN절 배치)로 로딩 후 `withOptions()`로 조립. N+1 방지
+- **assembleWithOptions() 헬퍼**: IN절 배치 쿼리 + groupingBy로 Product-ProductOption 조립. search()/adminSearch()에서 공통 사용
 
 ---
 
