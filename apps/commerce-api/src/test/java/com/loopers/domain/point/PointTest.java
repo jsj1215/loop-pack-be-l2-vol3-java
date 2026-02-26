@@ -46,6 +46,17 @@ class PointTest {
         }
 
         @Test
+        @DisplayName("회원 ID가 null이면 BAD_REQUEST 예외가 발생한다.")
+        void throwsException_whenMemberIdIsNull() {
+            // given & when
+            CoreException exception = assertThrows(CoreException.class,
+                    () -> Point.create(null, 0));
+
+            // then
+            assertThat(exception.getErrorType()).isEqualTo(ErrorType.BAD_REQUEST);
+        }
+
+        @Test
         @DisplayName("초기 잔액이 음수이면 BAD_REQUEST 예외가 발생한다.")
         void throwsException_whenNegativeInitialBalance() {
             // given

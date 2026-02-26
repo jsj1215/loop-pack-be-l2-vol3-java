@@ -22,17 +22,17 @@ public class Point extends BaseEntity {
     protected Point() {}
 
     private Point(Long memberId, int balance) {
+        if (memberId == null) {
+            throw new CoreException(ErrorType.BAD_REQUEST, "회원 ID는 필수입니다.");
+        }
+        if (balance < 0) {
+            throw new CoreException(ErrorType.BAD_REQUEST, "초기 잔액은 0 이상이어야 합니다.");
+        }
         this.memberId = memberId;
         this.balance = balance;
     }
 
-    /**
-     * 신규 생성 시 사용하는 정적 팩토리 메서드
-     */
     public static Point create(Long memberId, int initialBalance) {
-        if (initialBalance < 0) {
-            throw new CoreException(ErrorType.BAD_REQUEST, "초기 잔액은 0 이상이어야 합니다.");
-        }
         return new Point(memberId, initialBalance);
     }
 
