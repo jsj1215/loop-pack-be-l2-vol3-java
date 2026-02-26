@@ -295,7 +295,7 @@ classDiagram
 - **Like.likeYn**: LIKE_YN 컬럼 기반 soft delete. `like()`, `unlike()`으로 상태 전환
 - **OrderItem.createSnapshot()**: Product + ProductOption 정보를 스냅샷으로 복사하는 팩토리 메서드
 - **CartItem.addQuantity()**: 동일 옵션 장바구니 병합 시 수량 증가
-- **Point.charge()/use()**: 잔액 증감 로직을 도메인 모델이 책임. use() 시 잔액 부족이면 예외 발생
+- **Point 불변식 검증**: create() 시 초기 잔액 음수 거부, charge()/use() 시 금액 0 이하 거부, use() 시 잔액 부족 거부. 모든 검증을 도메인 모델 내부에서 강제
 - **PointHistory 정적 팩토리**: createCharge/createUse로 충전/사용 이력 생성을 명시적으로 구분
 - **Order.usedPoints**: 주문 시 사용한 포인트. 0이면 포인트 미사용
 - **Order.discountAmount / memberCouponId**: 쿠폰 할인 금액과 사용된 회원쿠폰 ID. 쿠폰 미사용 시 0 / null

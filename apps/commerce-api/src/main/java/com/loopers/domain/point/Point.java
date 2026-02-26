@@ -30,20 +30,23 @@ public class Point extends BaseEntity {
      * 신규 생성 시 사용하는 정적 팩토리 메서드
      */
     public static Point create(Long memberId, int initialBalance) {
+        if (initialBalance < 0) {
+            throw new CoreException(ErrorType.BAD_REQUEST, "초기 잔액은 0 이상이어야 합니다.");
+        }
         return new Point(memberId, initialBalance);
     }
 
-    /**
-     * 포인트 충전
-     */
     public void charge(int amount) {
+        if (amount <= 0) {
+            throw new CoreException(ErrorType.BAD_REQUEST, "충전 금액은 0보다 커야 합니다.");
+        }
         this.balance += amount;
     }
 
-    /**
-     * 포인트 사용
-     */
     public void use(int amount) {
+        if (amount <= 0) {
+            throw new CoreException(ErrorType.BAD_REQUEST, "사용 금액은 0보다 커야 합니다.");
+        }
         if (this.balance < amount) {
             throw new CoreException(ErrorType.BAD_REQUEST, "포인트가 부족합니다.");
         }

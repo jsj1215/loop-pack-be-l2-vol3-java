@@ -44,6 +44,21 @@ class PointTest {
                     () -> assertThat(point.getCreatedAt()).isNull(),
                     () -> assertThat(point.getUpdatedAt()).isNull());
         }
+
+        @Test
+        @DisplayName("초기 잔액이 음수이면 BAD_REQUEST 예외가 발생한다.")
+        void throwsException_whenNegativeInitialBalance() {
+            // given
+            Long memberId = 1L;
+            int initialBalance = -100;
+
+            // when
+            CoreException exception = assertThrows(CoreException.class,
+                    () -> Point.create(memberId, initialBalance));
+
+            // then
+            assertThat(exception.getErrorType()).isEqualTo(ErrorType.BAD_REQUEST);
+        }
     }
 
     @Nested
@@ -61,6 +76,34 @@ class PointTest {
 
             // then
             assertThat(point.getBalance()).isEqualTo(1500);
+        }
+
+        @Test
+        @DisplayName("충전 금액이 0이면 BAD_REQUEST 예외가 발생한다.")
+        void throwsException_whenChargeAmountIsZero() {
+            // given
+            Point point = Point.create(1L, 1000);
+
+            // when
+            CoreException exception = assertThrows(CoreException.class,
+                    () -> point.charge(0));
+
+            // then
+            assertThat(exception.getErrorType()).isEqualTo(ErrorType.BAD_REQUEST);
+        }
+
+        @Test
+        @DisplayName("충전 금액이 음수이면 BAD_REQUEST 예외가 발생한다.")
+        void throwsException_whenChargeAmountIsNegative() {
+            // given
+            Point point = Point.create(1L, 1000);
+
+            // when
+            CoreException exception = assertThrows(CoreException.class,
+                    () -> point.charge(-500));
+
+            // then
+            assertThat(exception.getErrorType()).isEqualTo(ErrorType.BAD_REQUEST);
         }
     }
 
@@ -95,6 +138,34 @@ class PointTest {
             assertAll(
                     () -> assertThat(exception.getErrorType()).isEqualTo(ErrorType.BAD_REQUEST),
                     () -> assertThat(exception.getMessage()).contains("포인트가 부족합니다."));
+        }
+
+        @Test
+        @DisplayName("사용 금액이 0이면 BAD_REQUEST 예외가 발생한다.")
+        void throwsException_whenUseAmountIsZero() {
+            // given
+            Point point = Point.create(1L, 1000);
+
+            // when
+            CoreException exception = assertThrows(CoreException.class,
+                    () -> point.use(0));
+
+            // then
+            assertThat(exception.getErrorType()).isEqualTo(ErrorType.BAD_REQUEST);
+        }
+
+        @Test
+        @DisplayName("사용 금액이 음수이면 BAD_REQUEST 예외가 발생한다.")
+        void throwsException_whenUseAmountIsNegative() {
+            // given
+            Point point = Point.create(1L, 1000);
+
+            // when
+            CoreException exception = assertThrows(CoreException.class,
+                    () -> point.use(-100));
+
+            // then
+            assertThat(exception.getErrorType()).isEqualTo(ErrorType.BAD_REQUEST);
         }
     }
 }

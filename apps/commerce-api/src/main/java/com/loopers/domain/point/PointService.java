@@ -33,10 +33,6 @@ public class PointService {
         Point point = pointRepository.findByMemberId(memberId)
                 .orElseThrow(() -> new CoreException(ErrorType.NOT_FOUND, "포인트 정보를 찾을 수 없습니다."));
 
-        if (amount <= 0) {
-            throw new CoreException(ErrorType.BAD_REQUEST, "충전 금액은 0보다 커야 합니다.");
-        }
-
         point.charge(amount);
         pointRepository.save(point);
 
