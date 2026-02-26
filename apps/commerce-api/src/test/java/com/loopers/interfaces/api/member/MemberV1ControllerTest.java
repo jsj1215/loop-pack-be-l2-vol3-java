@@ -130,8 +130,8 @@ class MemberV1ControllerTest {
         }
 
         @Test
-        @DisplayName("성공 시 응답 헤더에 로그인 정보가 포함된다.")
-        void includesLoginInfoInHeaders_whenSuccess() throws Exception {
+        @DisplayName("성공 시 응답 헤더에 로그인 ID만 포함되고 비밀번호는 포함되지 않는다.")
+        void includesLoginIdInHeaders_andExcludesPassword_whenSuccess() throws Exception {
             // arrange
             MemberV1Dto.SignupRequest request = new MemberV1Dto.SignupRequest(
                 "testuser1",
@@ -152,7 +152,7 @@ class MemberV1ControllerTest {
                     .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andExpect(header().string("X-Loopers-LoginId", "testuser1"))
-                .andExpect(header().string("X-Loopers-LoginPw", "Password1!"));
+                .andExpect(header().doesNotExist("X-Loopers-LoginPw"));
         }
 
         @Test
@@ -315,8 +315,8 @@ class MemberV1ControllerTest {
         private static final String HEADER_LOGIN_PW = "X-Loopers-LoginPw";
 
         @Test
-        @DisplayName("성공 시 200 OK와 응답 헤더에 새 비밀번호를 반환한다.")
-        void returnsOkWithNewPasswordInHeader_whenSuccess() throws Exception {
+        @DisplayName("성공 시 200 OK를 반환하고 응답 헤더에 비밀번호가 포함되지 않는다.")
+        void returnsOk_andExcludesPasswordInHeader_whenSuccess() throws Exception {
             // arrange
             Member mockMember = mock(Member.class);
             when(memberService.authenticate("testuser1", "Password1!")).thenReturn(mockMember);
@@ -334,7 +334,7 @@ class MemberV1ControllerTest {
                     .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.meta.result").value("SUCCESS"))
-                .andExpect(header().string(HEADER_LOGIN_PW, "NewPass123!"));
+                .andExpect(header().doesNotExist("X-Loopers-LoginPw"));
 
             verify(memberFacade, times(1)).changePassword(any(Member.class), eq("Password1!"), eq("NewPass123!"));
         }

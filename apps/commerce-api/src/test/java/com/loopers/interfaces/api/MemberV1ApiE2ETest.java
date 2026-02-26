@@ -110,7 +110,7 @@ class MemberV1ApiE2ETest {
         class Signup {
 
                 @Test
-                @DisplayName("유효한 요청이면, 200 OK와 회원 ID를 반환하고 헤더에 로그인 정보가 포함된다.")
+                @DisplayName("유효한 요청이면, 200 OK와 회원 ID를 반환하고 헤더에 로그인 ID만 포함되고 비밀번호는 포함되지 않는다.")
                 void success_whenValidRequest() {
                         // arrange
                         MemberV1Dto.SignupRequest request = new MemberV1Dto.SignupRequest(
@@ -137,7 +137,7 @@ class MemberV1ApiE2ETest {
                                         () -> assertThat(response.getHeaders().getFirst("X-Loopers-LoginId"))
                                                         .isEqualTo("testuser1"),
                                         () -> assertThat(response.getHeaders().getFirst("X-Loopers-LoginPw"))
-                                                        .isEqualTo("Password1!"));
+                                                        .isNull());
                 }
 
                 @Test
@@ -507,7 +507,7 @@ class MemberV1ApiE2ETest {
         class ChangePassword {
 
                 @Test
-                @DisplayName("유효한 요청이면, 200 OK와 응답 헤더에 새 비밀번호를 반환한다.")
+                @DisplayName("유효한 요청이면, 200 OK를 반환하고 응답 헤더에 비밀번호가 포함되지 않는다.")
                 void success_whenValidRequest() {
                         // arrange - 회원 생성
                         Member member = createMember(
@@ -540,7 +540,7 @@ class MemberV1ApiE2ETest {
                         assertAll(
                                         () -> assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK),
                                         () -> assertThat(response.getHeaders().getFirst(HEADER_LOGIN_PW))
-                                                        .isEqualTo("NewPass123!"));
+                                                        .isNull());
 
                         // 변경된 비밀번호로 인증 확인
                         Member updatedMember = memberJpaRepository.findByLoginId("testuser1").orElseThrow();

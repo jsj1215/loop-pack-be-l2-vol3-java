@@ -22,7 +22,6 @@ import org.springframework.web.bind.annotation.RestController;
 public class MemberV1Controller {
 
     private static final String HEADER_LOGIN_ID = "X-Loopers-LoginId";
-    private static final String HEADER_LOGIN_PW = "X-Loopers-LoginPw";
 
     private final MemberFacade memberFacade;
 
@@ -33,15 +32,11 @@ public class MemberV1Controller {
     public ApiResponse<MemberV1Dto.SignupResponse> signup(
             @RequestBody MemberV1Dto.SignupRequest request,
             HttpServletResponse response) {
-        // 원본 비밀번호 보관 (헤더 응답용)
-        String rawPassword = request.password();
-
         // 회원가입 기능 동작
-        MemberInfo info = memberFacade.signup(request.toCommand()); // info는 도메인 결과를 담는 객체
+        MemberInfo info = memberFacade.signup(request.toCommand());
 
-        // 응답 헤더 설정
+        // 응답 헤더 설정 (비밀번호는 보안상 헤더에 포함하지 않음)
         response.setHeader(HEADER_LOGIN_ID, info.loginId());
-        response.setHeader(HEADER_LOGIN_PW, rawPassword);
 
         // 클라이언트에게 필요한 정보만 노출 하기 위해 계층별로 DTO를 분리
         MemberV1Dto.SignupResponse signupResponse = MemberV1Dto.SignupResponse.from(info);
@@ -64,12 +59,10 @@ public class MemberV1Controller {
     @PatchMapping("/me/password")
     public ApiResponse<Void> changePassword(
             @LoginMember Member member,
-            @RequestBody MemberV1Dto.ChangePasswordRequest request,
-            HttpServletResponse response) {
+            @RequestBody MemberV1Dto.ChangePasswordRequest request) {
         // 비밀번호 변경 기능 동작
         memberFacade.changePassword(member, request.currentPassword(), request.newPassword());
 
-        response.setHeader(HEADER_LOGIN_PW, request.newPassword()); // 변경된 비밀번호로 헤더 정보 변경
         return ApiResponse.success(null);
     }
 }

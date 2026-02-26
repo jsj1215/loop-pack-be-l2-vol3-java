@@ -835,6 +835,116 @@ testRestTemplate.exchange(
 - Application Layer의 Info 객체는 내부 데이터이므로 유지해도 무방
 - 어드민에서 공급가가 필요하다면 별도 어드민 DTO를 작성하여 대응
 
+#### CartService.addToCart() 수량 검증 추가
+
+**문제 인식**
+- `CartService.addToCart()`에서 수량이 0이나 음수인 경우에 대한 검증이 없었음
+- 0개나 음수 수량의 장바구니가 저장되면 주문 금액 계산과 재고 정책에서 장애 유발 가능
+
+**수정 내용**
+- `CartService.addToCart()` 메서드 진입 시 `quantity <= 0` 검증 추가
+- 재고 조회보다 앞서 수행하여, 불필요한 DB 호출 방지
+- `CartServiceTest`에 수량 0, 음수 케이스 테스트 2개 추가
+
+```java
+public CartItem addToCart(Long memberId, Long productOptionId, int quantity) {
+    if (quantity <= 0) {
+        throw new CoreException(ErrorType.BAD_REQUEST, "수량은 1개 이상이어야 합니다.");
+    }
+    // ... 이후 재고 검증 로직
+}
+```
+
+**수정 이유**
+- `PointService.chargePoint()`에서 `amount <= 0` 검증하는 기존 패턴과 일관성 유지
+- 시스템 경계(사용자 입력)에서의 방어적 검증은 도메인 레벨에서 처리하는 것이 안전
+
+#### Point 도메인 모델 불변식 검증 추가
+
+**문제 인식**
+- `Point.create()`, `charge()`, `use()`에서 입력값 불변식 검증이 없어 음수/0 입력으로 잔액이 왜곡될 수 있었음
+- 포인트 정합성 붕괴는 정산 이슈와 CS 폭증으로 직결되므로, 도메인 모델 내부에서 불변식을 강제해야 함
+- 기존에는 `PointService.chargePoint()`에만 `amount <= 0` 검증이 있었으나, 도메인 모델이 아닌 서비스에 위치하여 다른 경로로 호출 시 우회 가능
+
+**수정 내용**
+- `Point.create()`: `initialBalance < 0` 검증 추가
+- `Point.charge()`: `amount <= 0` 검증 추가
+- `Point.use()`: `amount <= 0` 검증 추가 (기존 잔액 부족 검증 앞에 배치)
+- `PointService.chargePoint()`의 중복 `amount <= 0` 검증 제거 — 도메인 모델이 불변식을 강제하므로 Service의 중복 검증 불필요
+- `PointTest`에 테스트 5개 추가: 초기 잔액 음수, 충전 0, 충전 음수, 사용 0, 사용 음수
+
+**수정 이유**
+- 불변식은 도메인 모델 내부에서 강제하는 것이 원칙 — 어떤 경로로 호출하든 깨지지 않음
+- Service에 검증이 있으면 도메인 모델을 직접 사용하는 테스트 등에서 우회 가능
+
+#### Point 생성자 불변식 강화 — 검증 위치를 private 생성자로 이동
+
+**문제 인식**
+- `Point.create()`에서 `initialBalance < 0` 검증은 추가했으나, private 생성자에서 `memberId` null 검증과 `balance` 음수 검증이 누락
+- private 생성자가 불변식의 최종 방어선이므로, 어떤 경로로든 객체가 생성될 때 반드시 검증이 수행되어야 함
+
+**수정 내용**
+- `initialBalance < 0` 검증을 `create()`에서 private 생성자로 이동
+- `memberId == null` 검증을 private 생성자에 추가
+- `PointTest`에 memberId null 케이스 테스트 추가
+
+#### ProductOption 재고 변경 시 수량 경계값 검증 추가
+
+**문제 인식**
+- `ProductOption.deductStock()`, `restoreStock()`에서 수량 경계값 검증이 없어 `deductStock(-1)`로 재고가 증가하거나 `restoreStock(-1)`로 재고가 감소하는 역방향 변경 가능
+
+**수정 내용**
+- `deductStock()`: `quantity <= 0` 검증 추가
+- `restoreStock()`: `quantity <= 0` 검증 추가
+- `ProductOptionTest`에 차감/복원 0, 음수 케이스 테스트 4개 추가
+
+#### Order 조회 시 N+1 쿼리 해결 (@EntityGraph 적용)
+
+**문제 인식**
+- `OrderJpaRepository.findByMemberIdAndCreatedAtBetweenAndDeletedAtIsNull()`이 반환한 각 Order에서 `orderItems`에 접근할 때 N+1 쿼리 발생
+- `OrderFacade.findOrders()` → `OrderInfo.from()` → `order.getOrderItems().size()` 호출로 페이지당 주문 수만큼 추가 쿼리 실행
+
+**수정 내용**
+- `findByIdAndDeletedAtIsNull`에 `@EntityGraph(attributePaths = "orderItems")` 추가
+- `findByMemberIdAndCreatedAtBetweenAndDeletedAtIsNull`에 `@EntityGraph(attributePaths = "orderItems")` 추가
+- `default_batch_fetch_size: 100` 설정이 있지만, `@EntityGraph`로 명시적으로 1번의 JOIN 쿼리로 해결
+
+**수정 이유**
+- `@EntityGraph`는 `@OneToMany`가 1개일 때 가장 간단하고 확실한 N+1 해결 방법
+- `JOIN FETCH` + `countQuery` 분리 방식보다 코드 변경이 적고, 기존 메서드명 쿼리를 그대로 유지 가능
+
+#### ArgumentResolver 인증 속성 방어 로직 추가
+
+**문제 인식**
+- `LoginMemberArgumentResolver`, `LoginAdminArgumentResolver`에서 인터셉터가 설정한 로그인 속성을 검증 없이 반환
+- 인터셉터 누락/오동작 시 null이 컨트롤러로 전달되어 401 대신 500(NPE) 발생 위험
+- 속성 타입 불일치 시에도 ClassCastException → 500 발생 위험
+
+**수정 내용**
+- `webRequest.getNativeRequest(HttpServletRequest.class)`로 타입 안전 획득
+- request null 검증 → `CoreException(UNAUTHORIZED)`
+- attribute null 또는 `instanceof` 타입 불일치 → `CoreException(UNAUTHORIZED)`
+- `LoginMemberArgumentResolverTest`, `LoginAdminArgumentResolverTest` 단위 테스트 각 4개(정상, null, 타입 불일치, request null) 추가
+
+**수정 이유**
+- 방어적 프로그래밍: 인터셉터와 Resolver 사이의 암묵적 계약에 의존하지 않고 Resolver에서 명시적으로 검증
+- 500 Internal Server Error 대신 401 Unauthorized로 적절한 HTTP 상태 코드 반환
+
+#### 회원가입/비밀번호 변경 응답에서 평문 비밀번호 헤더 제거
+
+**문제 인식**
+- `MemberV1Controller`의 `signup()`과 `changePassword()`에서 `X-Loopers-LoginPw` 응답 헤더로 평문 비밀번호를 노출
+- LB/프록시/접근 로그에 평문 비밀번호가 저장되어 계정 탈취 및 컴플라이언스 위반으로 직결
+
+**수정 내용**
+- `MemberV1Controller`: `HEADER_LOGIN_PW` 상수 제거, `signup()`에서 평문 비밀번호 보관 및 헤더 응답 제거, `changePassword()`에서 `HttpServletResponse` 파라미터 및 비밀번호 헤더 응답 제거
+- `MemberV1ControllerTest`: signup/changePassword 응답에 `X-Loopers-LoginPw` 헤더가 **존재하지 않음**을 검증하도록 변경 (`header().doesNotExist()`)
+- `MemberV1ApiE2ETest`: signup/changePassword 응답에 `X-Loopers-LoginPw` 헤더가 **null**임을 검증하도록 변경 (`.isNull()`)
+
+**수정 이유**
+- 응답 헤더에 비밀번호를 포함시키면 네트워크 경로상 모든 중간 장비(LB, WAF, 프록시)의 접근 로그에 평문 비밀번호가 기록됨
+- 요청 헤더로 비밀번호를 보내는 인증 메커니즘(`MemberAuthInterceptor`)은 현재 인증 구조상 유지하되, 응답에 되돌려주는 것만 제거
+
 #### 테스트 결과
 
-모든 수정 완료 후 전체 516개 테스트 통과 (BUILD SUCCESSFUL)
+모든 수정 완료 후 전체 531개 테스트 통과 (BUILD SUCCESSFUL)
