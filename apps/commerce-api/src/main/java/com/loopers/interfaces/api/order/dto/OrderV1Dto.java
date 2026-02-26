@@ -74,7 +74,6 @@ public class OrderV1Dto {
             String optionName,
             String brandName,
             int price,
-            int supplyPrice,
             int shippingFee,
             int quantity,
             int subtotal) {
@@ -88,7 +87,6 @@ public class OrderV1Dto {
                     info.optionName(),
                     info.brandName(),
                     info.price(),
-                    info.supplyPrice(),
                     info.shippingFee(),
                     info.quantity(),
                     info.subtotal());
