@@ -211,18 +211,19 @@ Facade는 인증에 관여하지 않으며, 인증된 Member를 파라미터로 
 - METHOD : GET
 - 로그인 필수 아님.
 
-(2) 쿠폰 다운로드
-- 설명 : 쿠폰을 다운로드한다.
-- URI : /api/v1/coupons/{couponId}/download
+(2) 쿠폰 발급 요청
+- 설명 : 쿠폰을 발급받는다.
+- URI : /api/v1/coupons/{couponId}/issue
 - METHOD : POST
 - 로그인 필수
-- 중복 다운로드 시 409 Conflict, 수량 소진 시 400 Bad Request
+- 중복 발급 시 409 Conflict, 수량 소진 시 400 Bad Request
 
 (3) 내 쿠폰 목록 조회
-- 설명 : 사용 가능한 내 쿠폰 목록을 조회한다.
-- URI : /api/v1/coupons/me
+- 설명 : 내 쿠폰 목록을 조회한다. AVAILABLE / USED / EXPIRED 상태를 함께 반환한다.
+- URI : /api/v1/users/me/coupons
 - METHOD : GET
 - 로그인 필수
+- EXPIRED는 DB 저장값이 아닌 조회 시 계산 (coupon.validTo < 현재시간 && status == AVAILABLE)
 
 ---
 ### 2. 어드민 기능
@@ -337,6 +338,25 @@ Controller는 고객 서비스와 분리된 별도 어드민 컨트롤러를 사
 (14) 쿠폰 상세 조회
 - 설명 : 쿠폰 상세 + 발급 현황을 조회한다.
 - URI : /api-admin/v1/coupons/{couponId}
+- METHOD : GET
+- 로그인 필수
+
+(15) 쿠폰 수정
+- 설명 : 쿠폰 템플릿 정보를 수정한다.
+- URI : /api-admin/v1/coupons/{couponId}
+- METHOD : PUT
+- 로그인 필수
+- Body : name, couponScope, targetId, discountType, discountValue, minOrderAmount, maxDiscountAmount, totalQuantity, validFrom, validTo
+
+(16) 쿠폰 삭제
+- 설명 : 쿠폰 템플릿을 삭제한다. (soft delete)
+- URI : /api-admin/v1/coupons/{couponId}
+- METHOD : POST
+- 로그인 필수
+
+(17) 특정 쿠폰 발급 내역 조회
+- 설명 : 특정 쿠폰의 발급 내역을 페이징 조회한다.
+- URI : /api-admin/v1/coupons/{couponId}/issues?page=0&size=20
 - METHOD : GET
 - 로그인 필수
 

@@ -246,6 +246,7 @@ classDiagram
         +isValid() boolean
         +issue() void
         +calculateDiscount(int applicableAmount) int
+        +updateInfo(...) void
     }
 
     class MemberCoupon {
@@ -278,6 +279,7 @@ classDiagram
         <<enumeration>>
         AVAILABLE
         USED
+        EXPIRED
     }
 
     Product --> Brand : contains
@@ -447,11 +449,14 @@ classDiagram
         +getCoupons(Pageable) Page~Coupon~
         +getCoupon(Long couponId) Coupon
         +getAvailableCoupons() List~Coupon~
-        +downloadCoupon(Long memberId, Long couponId) MemberCoupon
-        +getMyAvailableCoupons(Long memberId) List~MemberCoupon~
+        +issueCoupon(Long memberId, Long couponId) MemberCoupon
+        +findMyCoupons(Long memberId) List~MemberCoupon~
         +getMemberCoupon(Long memberCouponId) MemberCoupon
         +useCoupon(Long memberCouponId, Long orderId) void
         +calculateCouponDiscount(Long memberId, Long memberCouponId, int applicableAmount) int
+        +updateCoupon(Long couponId, Coupon) Coupon
+        +deleteCoupon(Long couponId) void
+        +findCouponIssues(Long couponId, Pageable) Page~MemberCoupon~
     }
 
     class CouponRepository {
@@ -466,7 +471,8 @@ classDiagram
         <<interface>>
         +findById(Long id) Optional~MemberCoupon~
         +findByMemberIdAndCouponId(Long, Long) Optional~MemberCoupon~
-        +findByMemberIdAndStatus(Long, MemberCouponStatus) List~MemberCoupon~
+        +findByMemberId(Long memberId) List~MemberCoupon~
+        +findByCouponId(Long couponId, Pageable) Page~MemberCoupon~
         +save(MemberCoupon) MemberCoupon
     }
 
@@ -495,6 +501,10 @@ classDiagram
 - **포인트 사용은 Facade에서 PointService를 호출하여 처리**: OrderFacade가 OrderService + PointService를 조율
 - **CouponService**: 쿠폰 생성/조회/발급/사용/할인계산을 담당. CouponRepository + MemberCouponRepository 의존
 - **CouponService.calculateCouponDiscount()**: 소유 검증, 사용 가능 여부, 유효기간, 최소 주문 금액 검증 + 할인 금액 계산을 도메인 서비스가 책임. OrderFacade에서 위임 호출
+- **CouponService.updateCoupon()**: 쿠폰 템플릿 수정. Coupon.updateInfo()로 도메인 모델에서 수정 처리
+- **CouponService.deleteCoupon()**: 쿠폰 템플릿 soft delete. BaseEntity.delete() 활용
+- **CouponService.findCouponIssues()**: 특정 쿠폰의 발급 내역 페이징 조회. MemberCouponRepository에 위임
+- **MemberCouponRepository.findByMemberId()**: 전체 상태(AVAILABLE/USED) 조회. EXPIRED는 조회 시 Facade에서 계산
 - **OrderService를 2단계로 분리**: `prepareOrderItems()`(재고 검증/차감 + 스냅샷 생성) → `createOrder()`(주문 저장). 각 단계의 책임 명확화
 - **쿠폰/포인트 사용은 Facade에서 각 Service를 호출하여 처리**: OrderFacade가 OrderService + CouponService + PointService + CartService를 조율
 
@@ -539,8 +549,8 @@ classDiagram
     class CouponFacade {
         -CouponService couponService
         +getAvailableCoupons() List~CouponInfo~
-        +downloadCoupon(Member member, Long couponId) MemberCouponInfo
-        +getMyAvailableCoupons(Member member) List~MyCouponInfo~
+        +issueCoupon(Member member, Long couponId) CouponInfo
+        +getMyCoupons(Member member) List~MyCouponInfo~
     }
 
     class BrandInfo {
@@ -628,7 +638,19 @@ classDiagram
         +int discountValue
         +int minOrderAmount
         +int maxDiscountAmount
+        +MemberCouponStatus status
         +ZonedDateTime validTo
+    }
+
+    class CouponIssueInfo {
+        <<record>>
+        +Long memberCouponId
+        +Long memberId
+        +Long couponId
+        +MemberCouponStatus status
+        +Long orderId
+        +ZonedDateTime usedAt
+        +ZonedDateTime createdAt
     }
 
     class CouponDetailInfo {
@@ -857,6 +879,9 @@ classDiagram
         +createCoupon(@LoginAdmin Admin, Request) ApiResponse
         +getCoupons(@LoginAdmin Admin, Pageable) ApiResponse
         +getCoupon(@LoginAdmin Admin, Long couponId) ApiResponse
+        +updateCoupon(@LoginAdmin Admin, Long couponId, Request) ApiResponse
+        +deleteCoupon(@LoginAdmin Admin, Long couponId) ApiResponse
+        +getCouponIssues(@LoginAdmin Admin, Long couponId, Pageable) ApiResponse
     }
 
     class AdminPointFacade {
@@ -869,11 +894,14 @@ classDiagram
         +createCoupon(Request) CouponInfo
         +getCoupons(Pageable) Page~CouponInfo~
         +getCoupon(Long couponId) CouponDetailInfo
+        +updateCoupon(Long couponId, Request) CouponDetailInfo
+        +deleteCoupon(Long couponId) void
+        +getCouponIssues(Long couponId, Pageable) Page~CouponIssueInfo~
     }
 
     class CouponV1Controller {
         +getAvailableCoupons() ApiResponse
-        +downloadCoupon(@LoginMember Member, Long couponId) ApiResponse
+        +issueCoupon(@LoginMember Member, Long couponId) ApiResponse
         +getMyCoupons(@LoginMember Member) ApiResponse
     }
 
@@ -902,5 +930,7 @@ classDiagram
 - **AdminFacade는 인증 무관**: Interceptor에서 인증 완료 후 Controller가 @LoginAdmin Admin을 받고, Facade에는 비즈니스 파라미터만 전달
 - **AdminFacade가 크로스 도메인 조율 담당**: 브랜드 삭제 시 `AdminBrandFacade`가 BrandService + ProductService + CartService를 조율, 상품 등록 시 `AdminProductFacade`가 BrandService로 브랜드 존재 확인 후 ProductService에 전달
 - **AdminPointFacade**: 어드민 포인트 지급 전용. PointService만 의존하여 단순 위임
-- **AdminCouponFacade**: 어드민 쿠폰 생성/조회 전용. CouponService만 의존하여 단순 위임
-- **CouponV1Controller**: 대고객 쿠폰 목록 조회(인증 불필요), 다운로드/내 쿠폰 조회(인증 필요)
+- **AdminCouponFacade**: 어드민 쿠폰 CRUD + 발급 내역 조회. CouponService만 의존하여 단순 위임
+- **CouponV1Controller**: 대고객 쿠폰 목록 조회(인증 불필요), 발급/내 쿠폰 조회(인증 필요)
+- **내 쿠폰 조회 URI 변경**: `/api/v1/coupons/me` → `/api/v1/users/me/coupons`. 전체 상태(AVAILABLE/USED/EXPIRED) 반환
+- **EXPIRED 상태**: DB에 저장하지 않고 조회 시 계산 (coupon.validTo < now && status == AVAILABLE → EXPIRED)

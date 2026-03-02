@@ -593,7 +593,7 @@ sequenceDiagram
 
 ---
 
-## (12) 쿠폰 다운로드
+## (12) 쿠폰 발급 요청
 
 ```mermaid
 sequenceDiagram
@@ -605,15 +605,15 @@ sequenceDiagram
     participant CouponRepo as CouponRepository
     participant MemberCouponRepo as MemberCouponRepository
 
-    Client->>Controller: POST /api/v1/coupons/{couponId}/download<br/>Headers: X-Loopers-LoginId, X-Loopers-LoginPw
+    Client->>Controller: POST /api/v1/coupons/{couponId}/issue<br/>Headers: X-Loopers-LoginId, X-Loopers-LoginPw
 
     Note over Controller: MemberAuthInterceptor 인증 처리 → @LoginMember Member 주입
     alt 인증 실패 (헤더 누락 또는 인증 오류)
         Controller-->>Client: 401 Unauthorized
     end
 
-    Controller->>Facade: 인증된 Member + 쿠폰 다운로드 요청
-    Facade->>Service: 쿠폰 다운로드 (memberId, couponId)
+    Controller->>Facade: 인증된 Member + 쿠폰 발급 요청
+    Facade->>Service: 쿠폰 발급 (memberId, couponId)
     Service->>CouponRepo: 쿠폰 ID로 조회
 
     alt 쿠폰이 존재하지 않는 경우
@@ -624,11 +624,11 @@ sequenceDiagram
 
     CouponRepo-->>Service: 쿠폰 정보
 
-    Service->>MemberCouponRepo: 회원+쿠폰으로 중복 다운로드 확인
-    alt 이미 다운로드한 경우
+    Service->>MemberCouponRepo: 회원+쿠폰으로 중복 발급 확인
+    alt 이미 발급받은 경우
         MemberCouponRepo-->>Service: 기존 발급 내역
-        Service-->>Controller: 중복 다운로드 예외
-        Controller-->>Client: 409 Conflict "이미 다운로드한 쿠폰입니다"
+        Service-->>Controller: 중복 발급 예외
+        Controller-->>Client: 409 Conflict "이미 발급받은 쿠폰입니다"
     end
 
     MemberCouponRepo-->>Service: 조회 결과 없음
@@ -646,13 +646,13 @@ sequenceDiagram
     Service->>MemberCouponRepo: 회원 쿠폰 저장
 
     Service-->>Facade: 발급된 회원 쿠폰 정보
-    Facade-->>Controller: 쿠폰 다운로드 응답
-    Controller-->>Client: 200 OK (MemberCouponResponse)
+    Facade-->>Controller: 쿠폰 발급 응답
+    Controller-->>Client: 200 OK (CouponResponse)
 ```
 
 **설계 포인트**
-- 인증 필요: 로그인한 회원만 다운로드 가능
-- 중복 다운로드 방지: `member_id + coupon_id` UNIQUE 제약 + 애플리케이션 레벨 검증 (409 Conflict)
+- 인증 필요: 로그인한 회원만 발급 가능
+- 중복 발급 방지: `member_id + coupon_id` UNIQUE 제약 + 애플리케이션 레벨 검증 (409 Conflict)
 - 발급 가능 여부: `Coupon.isIssuable()`에서 수량(`issuedQuantity < totalQuantity`) + 유효기간(`validFrom ≤ now ≤ validTo`) 확인
 - `Coupon.issue()`: issuedQuantity 증가. 동시성은 추후 optimistic locking 또는 DB 원자적 업데이트로 개선
 - MemberCoupon 생성 시 status는 AVAILABLE
@@ -668,9 +668,10 @@ sequenceDiagram
     participant Controller as CouponV1Controller
     participant Facade as CouponFacade
     participant Service as CouponService
-    participant Repository as MemberCouponRepository
+    participant MemberCouponRepo as MemberCouponRepository
+    participant CouponRepo as CouponRepository
 
-    Client->>Controller: GET /api/v1/coupons/me<br/>Headers: X-Loopers-LoginId, X-Loopers-LoginPw
+    Client->>Controller: GET /api/v1/users/me/coupons<br/>Headers: X-Loopers-LoginId, X-Loopers-LoginPw
 
     Note over Controller: MemberAuthInterceptor 인증 처리 → @LoginMember Member 주입
     alt 인증 실패 (헤더 누락 또는 인증 오류)
@@ -678,25 +679,29 @@ sequenceDiagram
     end
 
     Controller->>Facade: 인증된 Member + 내 쿠폰 목록 조회 요청
-    Facade->>Service: 내 사용 가능 쿠폰 조회 (memberId)
-    Service->>Repository: 회원 ID + AVAILABLE 상태로 조회
-    Repository-->>Service: 회원 쿠폰 목록 (빈 리스트 가능)
+    Facade->>Service: 내 쿠폰 전체 조회 (memberId)
+    Service->>MemberCouponRepo: 회원 ID로 전체 조회 (AVAILABLE + USED)
+    MemberCouponRepo-->>Service: 회원 쿠폰 목록 (빈 리스트 가능)
+    Service-->>Facade: 회원 쿠폰 목록
 
-    alt 조회 결과가 빈 리스트인 경우
-        Service-->>Facade: 빈 리스트
-        Facade-->>Controller: "조회된 내역이 없습니다."
-        Controller-->>Client: 200 OK ("조회된 내역이 없습니다.")
+    loop 각 MemberCoupon에 대해
+        Facade->>Service: 쿠폰 정보 조회 (couponId)
+        Service->>CouponRepo: 쿠폰 ID로 조회
+        CouponRepo-->>Service: 쿠폰 정보
+        Service-->>Facade: 쿠폰 정보
+        Note over Facade: EXPIRED 판별:<br/>status == AVAILABLE && coupon.validTo < now → EXPIRED
     end
 
-    Service-->>Facade: 회원 쿠폰 목록
-    Facade-->>Controller: 내 쿠폰 응답 목록
+    Facade-->>Controller: 내 쿠폰 응답 목록 (AVAILABLE / USED / EXPIRED 상태 포함)
     Controller-->>Client: 200 OK (내 쿠폰 목록)
 ```
 
 **설계 포인트**
 - 인증 필요: 로그인한 회원의 쿠폰만 조회
-- AVAILABLE 상태의 쿠폰만 반환 (USED 제외)
-- 결과 0건이어도 200 반환, 메시지로 "조회된 내역이 없습니다." 응답
+- URI 변경: `/api/v1/coupons/me` → `/api/v1/users/me/coupons`
+- 전체 상태 반환: AVAILABLE / USED / EXPIRED
+- EXPIRED는 DB 저장값이 아닌 조회 시 계산: `status == AVAILABLE && coupon.validTo < now`
+- 결과 0건이어도 200 반환
 - 쿠폰 정보(쿠폰명, 할인 유형, 할인 값, 유효기간 등)를 함께 반환하여 주문 시 선택에 활용
 
 ---
@@ -1368,3 +1373,137 @@ sequenceDiagram
 **설계 포인트**
 - targetId, totalQuantity, issuedQuantity 등 어드민 전용 상세 정보 포함
 - 존재하지 않으면 404 Not Found
+
+---
+
+## 어드민 (15) 쿠폰 수정
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Client
+    participant Controller as AdminCouponV1Controller
+    participant Facade as AdminCouponFacade
+    participant Service as CouponService
+    participant Repository as CouponRepository
+
+    Client->>Controller: PUT /api-admin/v1/coupons/{couponId}<br/>Header: X-Loopers-Ldap<br/>Body: name, couponScope, targetId, discountType, discountValue, minOrderAmount, maxDiscountAmount, totalQuantity, validFrom, validTo
+
+    Note over Controller: AdminAuthInterceptor 인증 처리 → @LoginAdmin Admin 주입
+    alt 인증 실패 (헤더 누락 또는 인증 오류)
+        Controller-->>Client: 401 Unauthorized
+    end
+
+    Controller->>Facade: 인증된 Admin + 쿠폰 수정 요청
+    Facade->>Service: 쿠폰 수정 (couponId, 수정 정보)
+    Service->>Repository: 쿠폰 ID로 조회
+
+    alt 쿠폰이 존재하지 않는 경우
+        Repository-->>Service: 조회 결과 없음
+        Service-->>Controller: 쿠폰 없음 예외
+        Controller-->>Client: 404 Not Found
+    end
+
+    Repository-->>Service: 쿠폰 정보
+    Note over Service: Coupon.updateInfo(...) - 쿠폰 템플릿 정보 수정
+    Service->>Repository: 쿠폰 저장
+    Repository-->>Service: 수정된 쿠폰 정보
+    Service-->>Facade: 쿠폰 정보
+    Facade-->>Controller: 쿠폰 상세 응답 정보
+    Controller-->>Client: 200 OK (CouponDetailResponse)
+```
+
+**설계 포인트**
+- 존재하지 않는 쿠폰 수정 시 404 Not Found
+- Coupon.updateInfo()로 도메인 모델에서 수정 책임
+
+---
+
+## 어드민 (16) 쿠폰 삭제
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Client
+    participant Controller as AdminCouponV1Controller
+    participant Facade as AdminCouponFacade
+    participant Service as CouponService
+    participant Repository as CouponRepository
+
+    Client->>Controller: POST /api-admin/v1/coupons/{couponId}<br/>Header: X-Loopers-Ldap
+
+    Note over Controller: AdminAuthInterceptor 인증 처리 → @LoginAdmin Admin 주입
+    alt 인증 실패 (헤더 누락 또는 인증 오류)
+        Controller-->>Client: 401 Unauthorized
+    end
+
+    Controller->>Facade: 인증된 Admin + 쿠폰 삭제 요청
+    Facade->>Service: 쿠폰 삭제 (couponId)
+    Service->>Repository: 쿠폰 ID로 조회
+
+    alt 쿠폰이 존재하지 않는 경우
+        Repository-->>Service: 조회 결과 없음
+        Service-->>Controller: 쿠폰 없음 예외
+        Controller-->>Client: 404 Not Found
+    end
+
+    Repository-->>Service: 쿠폰 정보
+    Note over Service: BaseEntity.delete() - soft delete (deletedAt 설정)
+    Service->>Repository: 쿠폰 저장
+
+    Service-->>Facade: 처리 완료
+    Facade-->>Controller: 처리 완료
+    Controller-->>Client: 200 OK
+```
+
+**설계 포인트**
+- soft delete: BaseEntity.delete()로 deletedAt 설정
+- 이미 발급된 회원 쿠폰은 유지 (사용 가능 상태 유지)
+- 존재하지 않으면 404 Not Found
+
+---
+
+## 어드민 (17) 특정 쿠폰 발급 내역 조회
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Client
+    participant Controller as AdminCouponV1Controller
+    participant Facade as AdminCouponFacade
+    participant Service as CouponService
+    participant CouponRepo as CouponRepository
+    participant MemberCouponRepo as MemberCouponRepository
+
+    Client->>Controller: GET /api-admin/v1/coupons/{couponId}/issues?page=&size=<br/>Header: X-Loopers-Ldap
+
+    Note over Controller: AdminAuthInterceptor 인증 처리 → @LoginAdmin Admin 주입
+    alt 인증 실패 (헤더 누락 또는 인증 오류)
+        Controller-->>Client: 401 Unauthorized
+    end
+
+    Controller->>Facade: 인증된 Admin + 쿠폰 발급 내역 조회 요청
+    Facade->>Service: 쿠폰 존재 확인 (couponId)
+    Service->>CouponRepo: 쿠폰 ID로 조회
+
+    alt 쿠폰이 존재하지 않는 경우
+        CouponRepo-->>Service: 조회 결과 없음
+        Service-->>Controller: 쿠폰 없음 예외
+        Controller-->>Client: 404 Not Found
+    end
+
+    CouponRepo-->>Service: 쿠폰 정보
+
+    Facade->>Service: 발급 내역 조회 (couponId, Pageable)
+    Service->>MemberCouponRepo: 쿠폰 ID로 발급 내역 페이징 조회
+    MemberCouponRepo-->>Service: 발급 내역 (빈 리스트 가능)
+
+    Service-->>Facade: 발급 내역
+    Facade-->>Controller: 발급 내역 응답 목록
+    Controller-->>Client: 200 OK (페이징된 발급 내역)
+```
+
+**설계 포인트**
+- 쿠폰 존재 확인 후 발급 내역 조회
+- 발급 회원ID, 상태(AVAILABLE/USED), 사용 주문ID, 사용 시간 등 포함
+- 페이징 처리
