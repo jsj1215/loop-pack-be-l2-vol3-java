@@ -45,5 +45,4 @@ out/
 ### Claude Code ###
 .claude/
 
-### 주차별 폴더 ###
-docs/week*
+
