@@ -16,6 +16,7 @@ import com.loopers.domain.point.PointService;
 import com.loopers.domain.product.MarginType;
 import com.loopers.domain.product.Product;
 import com.loopers.domain.product.ProductOption;
+import com.loopers.domain.product.ProductService;
 import com.loopers.domain.product.ProductStatus;
 import com.loopers.support.error.CoreException;
 import com.loopers.support.error.ErrorType;
@@ -65,6 +66,9 @@ class OrderFacadeTest {
     @Mock
     private CartService cartService;
 
+    @Mock
+    private ProductService productService;
+
     @InjectMocks
     private OrderFacade orderFacade;
 
@@ -109,13 +113,19 @@ class OrderFacadeTest {
     private Coupon createCouponWithId(Long id, String name, CouponScope scope, Long targetId,
                                       DiscountType discountType, int discountValue,
                                       int minOrderAmount, int maxDiscountAmount,
-                                      int totalQuantity, int issuedQuantity,
                                       ZonedDateTime validFrom, ZonedDateTime validTo) {
         Coupon coupon = new Coupon(name, scope, targetId, discountType, discountValue,
-                minOrderAmount, maxDiscountAmount, totalQuantity, validFrom, validTo);
+                minOrderAmount, maxDiscountAmount, validFrom, validTo);
         ReflectionTestUtils.setField(coupon, "id", id);
-        ReflectionTestUtils.setField(coupon, "issuedQuantity", issuedQuantity);
         return coupon;
+    }
+
+    private Product createProductWithId(Long id, Long brandId, String brandName, String name, int price) {
+        Brand brand = createBrandWithId(brandId, brandName);
+        Product product = new Product(brand, name, price, price - 10000, 0, 3000,
+                "", MarginType.AMOUNT, ProductStatus.ON_SALE, "Y", List.of());
+        ReflectionTestUtils.setField(product, "id", id);
+        return product;
     }
 
     private MemberCoupon createMemberCouponWithId(Long id, Long memberId, Long couponId) {
@@ -173,6 +183,8 @@ class OrderFacadeTest {
                     new OrderItemRequest(1L, 1L, 2)
             );
 
+            Product product = createProductWithId(1L, 1L, "나이키", "운동화", 50000);
+
             OrderItem orderItem = createOrderItemWithId(1L, 1L, 1L, "운동화", "270mm", "나이키",
                     50000, 40000, 3000, 2);
             List<OrderItem> orderItems = List.of(orderItem);
@@ -181,18 +193,18 @@ class OrderFacadeTest {
 
             Coupon coupon = createCouponWithId(100L, "장바구니 쿠폰", CouponScope.CART, null,
                     DiscountType.FIXED_AMOUNT, 5000, 0, 0,
-                    100, 10,
                     ZonedDateTime.now().minusDays(1), ZonedDateTime.now().plusDays(30));
 
             // totalAmount = 100000, discountAmount = 5000 (FIXED_AMOUNT)
             Order savedOrder = createOrderWithId(1L, memberId, orderItems,
                     100000, 5000, memberCouponId, 0);
 
-            when(orderService.prepareOrderItems(itemRequests)).thenReturn(orderItems);
+            when(productService.findProductOnly(1L)).thenReturn(product);
             when(couponService.getMemberCoupon(memberCouponId)).thenReturn(memberCoupon);
             when(couponService.findById(100L)).thenReturn(coupon);
             when(couponService.calculateCouponDiscount(eq(memberId), eq(memberCouponId), eq(100000)))
                     .thenReturn(5000);
+            when(orderService.prepareOrderItems(itemRequests)).thenReturn(orderItems);
             when(orderService.createOrder(eq(memberId), eq(orderItems), eq(5000), eq(memberCouponId), eq(0)))
                     .thenReturn(savedOrder);
 
@@ -203,7 +215,7 @@ class OrderFacadeTest {
             assertAll(
                     () -> assertThat(result.discountAmount()).isEqualTo(5000),
                     () -> verify(couponService, times(1)).calculateCouponDiscount(memberId, memberCouponId, 100000),
-                    () -> verify(couponService, times(1)).useCoupon(memberCouponId, 1L)
+                    () -> verify(couponService, times(1)).useCoupon(memberId, memberCouponId, 1L)
             );
         }
 
@@ -218,6 +230,8 @@ class OrderFacadeTest {
                     new OrderItemRequest(2L, 2L, 1)
             );
 
+            Product product1 = createProductWithId(1L, 1L, "나이키", "운동화", 50000);
+
             OrderItem item1 = createOrderItemWithId(1L, 1L, 1L, "운동화", "270mm", "나이키",
                     50000, 40000, 3000, 2);
             OrderItem item2 = createOrderItemWithId(2L, 2L, 2L, "모자", "FREE", "아디다스",
@@ -229,7 +243,6 @@ class OrderFacadeTest {
             // PRODUCT scope with targetId = 1L (운동화), 10% discount
             Coupon coupon = createCouponWithId(100L, "상품 쿠폰", CouponScope.PRODUCT, 1L,
                     DiscountType.FIXED_RATE, 10, 0, 50000,
-                    100, 10,
                     ZonedDateTime.now().minusDays(1), ZonedDateTime.now().plusDays(30));
 
             // applicableAmount for productId=1 = 50000 * 2 = 100000
@@ -237,11 +250,12 @@ class OrderFacadeTest {
             Order savedOrder = createOrderWithId(1L, memberId, orderItems,
                     130000, 10000, memberCouponId, 0);
 
-            when(orderService.prepareOrderItems(itemRequests)).thenReturn(orderItems);
+            when(productService.findProductOnly(1L)).thenReturn(product1);
             when(couponService.getMemberCoupon(memberCouponId)).thenReturn(memberCoupon);
             when(couponService.findById(100L)).thenReturn(coupon);
             when(couponService.calculateCouponDiscount(eq(memberId), eq(memberCouponId), eq(100000)))
                     .thenReturn(10000);
+            when(orderService.prepareOrderItems(itemRequests)).thenReturn(orderItems);
             when(orderService.createOrder(eq(memberId), eq(orderItems), eq(10000), eq(memberCouponId), eq(0)))
                     .thenReturn(savedOrder);
 
@@ -252,7 +266,7 @@ class OrderFacadeTest {
             assertAll(
                     () -> assertThat(result.discountAmount()).isEqualTo(10000),
                     () -> verify(couponService, times(1)).calculateCouponDiscount(memberId, memberCouponId, 100000),
-                    () -> verify(couponService, times(1)).useCoupon(memberCouponId, 1L)
+                    () -> verify(couponService, times(1)).useCoupon(memberId, memberCouponId, 1L)
             );
         }
 
@@ -267,6 +281,9 @@ class OrderFacadeTest {
                     new OrderItemRequest(2L, 2L, 1)
             );
 
+            Product product1 = createProductWithId(1L, 1L, "나이키", "운동화", 50000);
+            Product product2 = createProductWithId(2L, 2L, "아디다스", "모자", 30000);
+
             OrderItem item1 = createOrderItemWithId(1L, 1L, 1L, "운동화", "270mm", "나이키",
                     50000, 40000, 3000, 2);
             OrderItem item2 = createOrderItemWithId(2L, 2L, 2L, "모자", "FREE", "아디다스",
@@ -278,7 +295,6 @@ class OrderFacadeTest {
             // BRAND scope with targetId = 1L (나이키), FIXED_AMOUNT 3000
             Coupon coupon = createCouponWithId(100L, "브랜드 쿠폰", CouponScope.BRAND, 1L,
                     DiscountType.FIXED_AMOUNT, 3000, 0, 0,
-                    100, 10,
                     ZonedDateTime.now().minusDays(1), ZonedDateTime.now().plusDays(30));
 
             // applicableAmount for brandId=1 = 50000 * 2 = 100000
@@ -286,11 +302,13 @@ class OrderFacadeTest {
             Order savedOrder = createOrderWithId(1L, memberId, orderItems,
                     130000, 3000, memberCouponId, 0);
 
-            when(orderService.prepareOrderItems(itemRequests)).thenReturn(orderItems);
+            when(productService.findProductOnly(1L)).thenReturn(product1);
+            when(productService.findProductOnly(2L)).thenReturn(product2);
             when(couponService.getMemberCoupon(memberCouponId)).thenReturn(memberCoupon);
             when(couponService.findById(100L)).thenReturn(coupon);
             when(couponService.calculateCouponDiscount(eq(memberId), eq(memberCouponId), eq(100000)))
                     .thenReturn(3000);
+            when(orderService.prepareOrderItems(itemRequests)).thenReturn(orderItems);
             when(orderService.createOrder(eq(memberId), eq(orderItems), eq(3000), eq(memberCouponId), eq(0)))
                     .thenReturn(savedOrder);
 
@@ -301,7 +319,7 @@ class OrderFacadeTest {
             assertAll(
                     () -> assertThat(result.discountAmount()).isEqualTo(3000),
                     () -> verify(couponService, times(1)).calculateCouponDiscount(memberId, memberCouponId, 100000),
-                    () -> verify(couponService, times(1)).useCoupon(memberCouponId, 1L)
+                    () -> verify(couponService, times(1)).useCoupon(memberId, memberCouponId, 1L)
             );
         }
 
@@ -372,6 +390,8 @@ class OrderFacadeTest {
                     new OrderItemRequest(1L, 1L, 2)
             );
 
+            Product product = createProductWithId(1L, 1L, "나이키", "운동화", 50000);
+
             OrderItem orderItem = createOrderItemWithId(1L, 1L, 1L, "운동화", "270mm", "나이키",
                     50000, 40000, 3000, 2);
             List<OrderItem> orderItems = List.of(orderItem);
@@ -380,17 +400,17 @@ class OrderFacadeTest {
 
             Coupon coupon = createCouponWithId(100L, "장바구니 쿠폰", CouponScope.CART, null,
                     DiscountType.FIXED_AMOUNT, 5000, 0, 0,
-                    100, 10,
                     ZonedDateTime.now().minusDays(1), ZonedDateTime.now().plusDays(30));
 
             Order savedOrder = createOrderWithId(1L, memberId, orderItems,
                     100000, 5000, memberCouponId, usedPoints);
 
-            when(orderService.prepareOrderItems(itemRequests)).thenReturn(orderItems);
+            when(productService.findProductOnly(1L)).thenReturn(product);
             when(couponService.getMemberCoupon(memberCouponId)).thenReturn(memberCoupon);
             when(couponService.findById(100L)).thenReturn(coupon);
             when(couponService.calculateCouponDiscount(eq(memberId), eq(memberCouponId), eq(100000)))
                     .thenReturn(5000);
+            when(orderService.prepareOrderItems(itemRequests)).thenReturn(orderItems);
             when(orderService.createOrder(eq(memberId), eq(orderItems), eq(5000), eq(memberCouponId), eq(usedPoints)))
                     .thenReturn(savedOrder);
 
@@ -402,7 +422,7 @@ class OrderFacadeTest {
                     () -> assertThat(result.discountAmount()).isEqualTo(5000),
                     () -> assertThat(result.usedPoints()).isEqualTo(3000),
                     () -> verify(couponService, times(1)).calculateCouponDiscount(memberId, memberCouponId, 100000),
-                    () -> verify(couponService, times(1)).useCoupon(memberCouponId, 1L),
+                    () -> verify(couponService, times(1)).useCoupon(memberId, memberCouponId, 1L),
                     () -> verify(pointService, times(1)).usePoint(memberId, usedPoints, "주문 사용", 1L)
             );
         }
@@ -417,11 +437,6 @@ class OrderFacadeTest {
                     new OrderItemRequest(1L, 1L, 2)
             );
 
-            OrderItem orderItem = createOrderItemWithId(1L, 1L, 1L, "운동화", "270mm", "나이키",
-                    50000, 40000, 3000, 2);
-            List<OrderItem> orderItems = List.of(orderItem);
-
-            when(orderService.prepareOrderItems(itemRequests)).thenReturn(orderItems);
             when(couponService.getMemberCoupon(memberCouponId))
                     .thenThrow(new CoreException(ErrorType.NOT_FOUND, "쿠폰을 찾을 수 없습니다."));
 
@@ -430,7 +445,10 @@ class OrderFacadeTest {
                     () -> orderFacade.createOrder(memberId, itemRequests, memberCouponId, 0, null));
 
             // then
-            assertThat(exception.getErrorType()).isEqualTo(ErrorType.NOT_FOUND);
+            assertAll(
+                    () -> assertThat(exception.getErrorType()).isEqualTo(ErrorType.NOT_FOUND),
+                    () -> verify(orderService, never()).prepareOrderItems(any())
+            );
         }
 
         @Test

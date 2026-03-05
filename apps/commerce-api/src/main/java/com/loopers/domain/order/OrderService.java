@@ -11,6 +11,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 @RequiredArgsConstructor
@@ -20,14 +21,20 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final ProductService productService;
 
+    /**
+     * 주문 항목 준비 (재고 검증/차감 + 스냅샷 생성)
+     * 데드락 방지를 위해 productOptionId 오름차순으로 정렬하여 비관적 락 획득 순서를 일관되게 유지한다.
+     */
     public List<OrderItem> prepareOrderItems(List<OrderItemRequest> itemRequests) {
+        List<OrderItemRequest> sortedRequests = itemRequests.stream()
+                .sorted(Comparator.comparing(OrderItemRequest::productOptionId))
+                .toList();
+
         List<OrderItem> orderItems = new ArrayList<>();
 
-        for (OrderItemRequest request : itemRequests) {
-            Product product = productService.findById(request.productId());
-            ProductOption option = productService.findOptionById(request.productOptionId());
-
-            productService.deductStock(request.productOptionId(), request.quantity());
+        for (OrderItemRequest request : sortedRequests) {
+            Product product = productService.findProductOnly(request.productId());
+            ProductOption option = productService.deductStock(request.productOptionId(), request.quantity());
 
             OrderItem item = OrderItem.createSnapshot(product, option, request.quantity());
             orderItems.add(item);

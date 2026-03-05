@@ -9,6 +9,7 @@ import com.loopers.interfaces.api.ApiResponse;
 import com.loopers.interfaces.api.auth.LoginMember;
 import com.loopers.interfaces.api.order.dto.OrderV1Dto;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -23,6 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.time.ZonedDateTime;
 import java.util.List;
 
+@Slf4j
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/api/v1/orders")
@@ -39,14 +41,22 @@ public class OrderV1Controller {
                 .map(item -> new OrderItemRequest(item.productId(), item.productOptionId(), item.quantity()))
                 .toList();
 
-        OrderDetailInfo info = orderFacade.createOrder(
-                member.getId(),
-                itemRequests,
-                request.memberCouponId(),
-                request.usedPoints(),
-                request.cartProductOptionIds());
+        try {
+            OrderDetailInfo info = orderFacade.createOrder(
+                    member.getId(),
+                    itemRequests,
+                    request.memberCouponId(),
+                    request.usedPoints(),
+                    request.cartProductOptionIds());
 
-        return ApiResponse.success(OrderV1Dto.OrderDetailResponse.from(info));
+            log.info("주문 생성 성공 memberId={}, orderId={}, totalAmount={}, discountAmount={}, usedPoints={}, paymentAmount={}",
+                    member.getId(), info.id(), info.totalAmount(), info.discountAmount(), info.usedPoints(), info.paymentAmount());
+
+            return ApiResponse.success(OrderV1Dto.OrderDetailResponse.from(info));
+        } catch (Exception e) {
+            log.warn("주문 생성 실패 memberId={}, itemCount={}", member.getId(), itemRequests.size(), e);
+            throw e;
+        }
     }
 
     @GetMapping

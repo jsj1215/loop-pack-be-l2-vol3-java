@@ -31,7 +31,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -110,8 +109,8 @@ class OrderServiceTest {
             Product product = createProductWithId(1L, brand);
             ProductOption option = createProductOptionWithId(1L, 1L, "270mm", 100);
 
-            when(productService.findById(1L)).thenReturn(product);
-            when(productService.findOptionById(1L)).thenReturn(option);
+            when(productService.findProductOnly(1L)).thenReturn(product);
+            when(productService.deductStock(1L, 2)).thenReturn(option);
 
             List<OrderService.OrderItemRequest> requests = List.of(
                     new OrderService.OrderItemRequest(1L, 1L, 2)
@@ -134,7 +133,7 @@ class OrderServiceTest {
         @DisplayName("상품이 존재하지 않으면 NOT_FOUND 예외가 발생한다.")
         void throwsNotFound_whenProductNotFound() {
             // given
-            when(productService.findById(999L))
+            when(productService.findProductOnly(999L))
                     .thenThrow(new CoreException(ErrorType.NOT_FOUND, "상품을 찾을 수 없습니다."));
 
             List<OrderService.OrderItemRequest> requests = List.of(
@@ -157,10 +156,9 @@ class OrderServiceTest {
             Product product = createProductWithId(1L, brand);
             ProductOption option = createProductOptionWithId(1L, 1L, "270mm", 100);
 
-            when(productService.findById(1L)).thenReturn(product);
-            when(productService.findOptionById(1L)).thenReturn(option);
-            doThrow(new CoreException(ErrorType.BAD_REQUEST, "재고가 부족합니다."))
-                    .when(productService).deductStock(1L, 200);
+            when(productService.findProductOnly(1L)).thenReturn(product);
+            when(productService.deductStock(1L, 200))
+                    .thenThrow(new CoreException(ErrorType.BAD_REQUEST, "재고가 부족합니다."));
 
             List<OrderService.OrderItemRequest> requests = List.of(
                     new OrderService.OrderItemRequest(1L, 1L, 200)
