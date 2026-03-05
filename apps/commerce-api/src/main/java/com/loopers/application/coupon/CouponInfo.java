@@ -15,8 +15,7 @@ public record CouponInfo(
         int minOrderAmount,
         int maxDiscountAmount,
         ZonedDateTime validFrom,
-        ZonedDateTime validTo,
-        int remainingQuantity) {
+        ZonedDateTime validTo) {
 
     public static CouponInfo from(Coupon coupon) {
         return new CouponInfo(
@@ -28,7 +27,6 @@ public record CouponInfo(
                 coupon.getMinOrderAmount(),
                 coupon.getMaxDiscountAmount(),
                 coupon.getValidFrom(),
-                coupon.getValidTo(),
-                coupon.getTotalQuantity() - coupon.getIssuedQuantity());
+                coupon.getValidTo());
     }
 }

@@ -4,6 +4,8 @@ import com.loopers.domain.coupon.MemberCoupon;
 import com.loopers.domain.coupon.MemberCouponRepository;
 import com.loopers.domain.coupon.MemberCouponStatus;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -29,6 +31,16 @@ public class MemberCouponRepositoryImpl implements MemberCouponRepository {
     public List<MemberCoupon> findByMemberIdAndStatus(Long memberId, MemberCouponStatus status) {
         return memberCouponJpaRepository
                 .findByMemberIdAndStatusAndDeletedAtIsNull(memberId, status);
+    }
+
+    @Override
+    public List<MemberCoupon> findByMemberId(Long memberId) {
+        return memberCouponJpaRepository.findByMemberIdAndDeletedAtIsNull(memberId);
+    }
+
+    @Override
+    public Page<MemberCoupon> findByCouponId(Long couponId, Pageable pageable) {
+        return memberCouponJpaRepository.findByCouponIdAndDeletedAtIsNull(couponId, pageable);
     }
 
     @Override

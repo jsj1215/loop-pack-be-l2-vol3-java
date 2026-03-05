@@ -2,10 +2,12 @@ package com.loopers.interfaces.api.coupon.dto;
 
 import com.loopers.application.coupon.CouponDetailInfo;
 import com.loopers.application.coupon.CouponInfo;
+import com.loopers.application.coupon.CouponIssueInfo;
 import com.loopers.application.coupon.MyCouponInfo;
 import com.loopers.domain.coupon.Coupon;
 import com.loopers.domain.coupon.CouponScope;
 import com.loopers.domain.coupon.DiscountType;
+import com.loopers.domain.coupon.MemberCouponStatus;
 
 import java.time.ZonedDateTime;
 
@@ -19,14 +21,25 @@ public class CouponV1Dto {
             int discountValue,
             int minOrderAmount,
             int maxDiscountAmount,
-            int totalQuantity,
             ZonedDateTime validFrom,
             ZonedDateTime validTo) {
 
         public Coupon toCoupon() {
             return new Coupon(name, couponScope, targetId, discountType, discountValue,
-                    minOrderAmount, maxDiscountAmount, totalQuantity, validFrom, validTo);
+                    minOrderAmount, maxDiscountAmount, validFrom, validTo);
         }
+    }
+
+    public record UpdateCouponRequest(
+            String name,
+            CouponScope couponScope,
+            Long targetId,
+            DiscountType discountType,
+            int discountValue,
+            int minOrderAmount,
+            int maxDiscountAmount,
+            ZonedDateTime validFrom,
+            ZonedDateTime validTo) {
     }
 
     public record CouponResponse(
@@ -38,8 +51,7 @@ public class CouponV1Dto {
             int minOrderAmount,
             int maxDiscountAmount,
             ZonedDateTime validFrom,
-            ZonedDateTime validTo,
-            int remainingQuantity) {
+            ZonedDateTime validTo) {
 
         public static CouponResponse from(CouponInfo info) {
             return new CouponResponse(
@@ -51,8 +63,7 @@ public class CouponV1Dto {
                     info.minOrderAmount(),
                     info.maxDiscountAmount(),
                     info.validFrom(),
-                    info.validTo(),
-                    info.remainingQuantity());
+                    info.validTo());
         }
     }
 
@@ -65,8 +76,6 @@ public class CouponV1Dto {
             int discountValue,
             int minOrderAmount,
             int maxDiscountAmount,
-            int totalQuantity,
-            int issuedQuantity,
             ZonedDateTime validFrom,
             ZonedDateTime validTo,
             ZonedDateTime createdAt,
@@ -82,8 +91,6 @@ public class CouponV1Dto {
                     info.discountValue(),
                     info.minOrderAmount(),
                     info.maxDiscountAmount(),
-                    info.totalQuantity(),
-                    info.issuedQuantity(),
                     info.validFrom(),
                     info.validTo(),
                     info.createdAt(),
@@ -99,7 +106,8 @@ public class CouponV1Dto {
             int discountValue,
             int minOrderAmount,
             int maxDiscountAmount,
-            ZonedDateTime validTo) {
+            ZonedDateTime validTo,
+            MemberCouponStatus status) {
 
         public static MyCouponResponse from(MyCouponInfo info) {
             return new MyCouponResponse(
@@ -110,7 +118,29 @@ public class CouponV1Dto {
                     info.discountValue(),
                     info.minOrderAmount(),
                     info.maxDiscountAmount(),
-                    info.validTo());
+                    info.validTo(),
+                    info.status());
+        }
+    }
+
+    public record CouponIssueResponse(
+            Long memberCouponId,
+            Long memberId,
+            Long couponId,
+            String couponName,
+            MemberCouponStatus status,
+            ZonedDateTime issuedAt,
+            ZonedDateTime usedAt) {
+
+        public static CouponIssueResponse from(CouponIssueInfo info) {
+            return new CouponIssueResponse(
+                    info.memberCouponId(),
+                    info.memberId(),
+                    info.couponId(),
+                    info.couponName(),
+                    info.status(),
+                    info.issuedAt(),
+                    info.usedAt());
         }
     }
 }

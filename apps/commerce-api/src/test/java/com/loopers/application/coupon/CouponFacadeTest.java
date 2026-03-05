@@ -5,8 +5,10 @@ import com.loopers.domain.coupon.CouponScope;
 import com.loopers.domain.coupon.CouponService;
 import com.loopers.domain.coupon.DiscountType;
 import com.loopers.domain.coupon.MemberCoupon;
+import com.loopers.domain.coupon.MemberCouponDetail;
 import com.loopers.domain.coupon.MemberCouponStatus;
 import com.loopers.domain.member.Member;
+
 import com.loopers.support.error.CoreException;
 import com.loopers.support.error.ErrorType;
 import org.junit.jupiter.api.DisplayName;
@@ -42,12 +44,10 @@ class CouponFacadeTest {
     private Coupon createCouponWithId(Long id, String name, CouponScope scope, Long targetId,
                                       DiscountType discountType, int discountValue,
                                       int minOrderAmount, int maxDiscountAmount,
-                                      int totalQuantity, int issuedQuantity,
                                       ZonedDateTime validFrom, ZonedDateTime validTo) {
         Coupon coupon = new Coupon(name, scope, targetId, discountType, discountValue,
-                minOrderAmount, maxDiscountAmount, totalQuantity, validFrom, validTo);
+                minOrderAmount, maxDiscountAmount, validFrom, validTo);
         ReflectionTestUtils.setField(coupon, "id", id);
-        ReflectionTestUtils.setField(coupon, "issuedQuantity", issuedQuantity);
         return coupon;
     }
 
@@ -55,49 +55,6 @@ class CouponFacadeTest {
         MemberCoupon memberCoupon = new MemberCoupon(memberId, couponId);
         ReflectionTestUtils.setField(memberCoupon, "id", id);
         return memberCoupon;
-    }
-
-    @Nested
-    @DisplayName("사용 가능한 쿠폰 목록을 조회할 때,")
-    class GetAvailableCoupons {
-
-        @Test
-        @DisplayName("CouponService를 호출하고 CouponInfo 목록으로 변환하여 반환한다.")
-        void callsServiceAndReturnsCouponInfoList() {
-            // given
-            ZonedDateTime now = ZonedDateTime.now();
-            Coupon coupon = createCouponWithId(1L, "신규 가입 쿠폰", CouponScope.CART, null,
-                    DiscountType.FIXED_AMOUNT, 5000, 10000, 0,
-                    100, 10,
-                    now.minusDays(1), now.plusDays(30));
-
-            when(couponService.findAvailableCoupons()).thenReturn(List.of(coupon));
-
-            // when
-            List<CouponInfo> result = couponFacade.getAvailableCoupons();
-
-            // then
-            assertAll(
-                    () -> assertThat(result).hasSize(1),
-                    () -> assertThat(result.get(0).id()).isEqualTo(1L),
-                    () -> assertThat(result.get(0).name()).isEqualTo("신규 가입 쿠폰"),
-                    () -> assertThat(result.get(0).remainingQuantity()).isEqualTo(90),
-                    () -> verify(couponService, times(1)).findAvailableCoupons()
-            );
-        }
-
-        @Test
-        @DisplayName("사용 가능한 쿠폰이 없으면 빈 목록을 반환한다.")
-        void returnsEmptyList_whenNoCoupons() {
-            // given
-            when(couponService.findAvailableCoupons()).thenReturn(List.of());
-
-            // when
-            List<CouponInfo> result = couponFacade.getAvailableCoupons();
-
-            // then
-            assertThat(result).isEmpty();
-        }
     }
 
     @Nested
@@ -118,11 +75,10 @@ class CouponFacadeTest {
 
             Coupon coupon = createCouponWithId(couponId, "신규 가입 쿠폰", CouponScope.CART, null,
                     DiscountType.FIXED_AMOUNT, 5000, 10000, 0,
-                    100, 11,
                     now.minusDays(1), now.plusDays(30));
 
-            when(couponService.downloadCoupon(1L, couponId)).thenReturn(memberCoupon);
-            when(couponService.findById(couponId)).thenReturn(coupon);
+            MemberCouponDetail detail = new MemberCouponDetail(memberCoupon, coupon);
+            when(couponService.downloadCoupon(1L, couponId)).thenReturn(detail);
 
             // when
             CouponInfo result = couponFacade.downloadCoupon(mockMember, couponId);
@@ -131,8 +87,7 @@ class CouponFacadeTest {
             assertAll(
                     () -> assertThat(result.id()).isEqualTo(couponId),
                     () -> assertThat(result.name()).isEqualTo("신규 가입 쿠폰"),
-                    () -> verify(couponService, times(1)).downloadCoupon(1L, couponId),
-                    () -> verify(couponService, times(1)).findById(couponId)
+                    () -> verify(couponService, times(1)).downloadCoupon(1L, couponId)
             );
         }
 
@@ -212,11 +167,10 @@ class CouponFacadeTest {
 
             Coupon coupon = createCouponWithId(couponId, "신규 가입 쿠폰", CouponScope.CART, null,
                     DiscountType.FIXED_AMOUNT, 5000, 10000, 0,
-                    100, 10,
                     now.minusDays(1), now.plusDays(30));
 
-            when(couponService.findMyCoupons(1L)).thenReturn(List.of(memberCoupon));
-            when(couponService.findById(couponId)).thenReturn(coupon);
+            MemberCouponDetail detail = new MemberCouponDetail(memberCoupon, coupon);
+            when(couponService.getMyCouponDetails(1L)).thenReturn(List.of(detail));
 
             // when
             List<MyCouponInfo> result = couponFacade.getMyCoupons(mockMember);
@@ -229,8 +183,38 @@ class CouponFacadeTest {
                     () -> assertThat(result.get(0).couponScope()).isEqualTo(CouponScope.CART),
                     () -> assertThat(result.get(0).discountType()).isEqualTo(DiscountType.FIXED_AMOUNT),
                     () -> assertThat(result.get(0).discountValue()).isEqualTo(5000),
-                    () -> verify(couponService, times(1)).findMyCoupons(1L),
-                    () -> verify(couponService, times(1)).findById(couponId)
+                    () -> assertThat(result.get(0).status()).isEqualTo(MemberCouponStatus.AVAILABLE),
+                    () -> verify(couponService, times(1)).getMyCouponDetails(1L)
+            );
+        }
+
+        @Test
+        @DisplayName("유효기간이 만료된 AVAILABLE 쿠폰은 EXPIRED 상태로 변환하여 반환한다.")
+        void returnsExpiredStatus_whenCouponExpired() {
+            // given
+            Member mockMember = mock(Member.class);
+            when(mockMember.getId()).thenReturn(1L);
+
+            ZonedDateTime now = ZonedDateTime.now();
+            Long couponId = 200L;
+
+            MemberCoupon memberCoupon = createMemberCouponWithId(20L, 1L, couponId);
+
+            Coupon expiredCoupon = createCouponWithId(couponId, "만료된 쿠폰", CouponScope.CART, null,
+                    DiscountType.FIXED_AMOUNT, 3000, 5000, 0,
+                    now.minusDays(60), now.minusDays(1));
+
+            MemberCouponDetail detail = new MemberCouponDetail(memberCoupon, expiredCoupon);
+            when(couponService.getMyCouponDetails(1L)).thenReturn(List.of(detail));
+
+            // when
+            List<MyCouponInfo> result = couponFacade.getMyCoupons(mockMember);
+
+            // then
+            assertAll(
+                    () -> assertThat(result).hasSize(1),
+                    () -> assertThat(result.get(0).memberCouponId()).isEqualTo(20L),
+                    () -> assertThat(result.get(0).status()).isEqualTo(MemberCouponStatus.EXPIRED)
             );
         }
 
@@ -241,7 +225,7 @@ class CouponFacadeTest {
             Member mockMember = mock(Member.class);
             when(mockMember.getId()).thenReturn(1L);
 
-            when(couponService.findMyCoupons(1L)).thenReturn(List.of());
+            when(couponService.getMyCouponDetails(1L)).thenReturn(List.of());
 
             // when
             List<MyCouponInfo> result = couponFacade.getMyCoupons(mockMember);

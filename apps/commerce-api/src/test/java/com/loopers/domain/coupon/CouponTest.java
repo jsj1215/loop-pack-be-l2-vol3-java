@@ -1,7 +1,5 @@
 package com.loopers.domain.coupon;
 
-import com.loopers.support.error.CoreException;
-import com.loopers.support.error.ErrorType;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -11,7 +9,6 @@ import java.time.ZonedDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @DisplayName("Coupon 도메인 모델 단위 테스트")
 class CouponTest {
@@ -21,15 +18,15 @@ class CouponTest {
     class Create {
 
         @Test
-        @DisplayName("생성자로 생성하면 issuedQuantity가 0이다.")
-        void issuedQuantityIsZero_whenCreated() {
+        @DisplayName("생성자로 생성하면 필드가 올바르게 초기화된다.")
+        void fieldsAreInitialized_whenCreated() {
             // given
             ZonedDateTime validFrom = ZonedDateTime.now().minusDays(1);
             ZonedDateTime validTo = ZonedDateTime.now().plusDays(30);
 
             // when
             Coupon coupon = new Coupon("10% 할인 쿠폰", CouponScope.CART, null,
-                    DiscountType.FIXED_RATE, 10, 10000, 5000, 100,
+                    DiscountType.FIXED_RATE, 10, 10000, 5000,
                     validFrom, validTo);
 
             // then
@@ -39,70 +36,7 @@ class CouponTest {
                     () -> assertThat(coupon.getCouponScope()).isEqualTo(CouponScope.CART),
                     () -> assertThat(coupon.getTargetId()).isNull(),
                     () -> assertThat(coupon.getDiscountType()).isEqualTo(DiscountType.FIXED_RATE),
-                    () -> assertThat(coupon.getDiscountValue()).isEqualTo(10),
-                    () -> assertThat(coupon.getIssuedQuantity()).isEqualTo(0),
-                    () -> assertThat(coupon.getTotalQuantity()).isEqualTo(100));
-        }
-    }
-
-    @Nested
-    @DisplayName("쿠폰 발급 가능 여부를 확인할 때,")
-    class IsIssuable {
-
-        @Test
-        @DisplayName("수량이 남아있고 유효기간 내이면 true를 반환한다.")
-        void returnsTrue_whenQuantityRemainsAndWithinValidity() {
-            // given
-            Coupon coupon = new Coupon("쿠폰", CouponScope.CART, null,
-                    DiscountType.FIXED_AMOUNT, 1000, 0, 0, 100,
-                    ZonedDateTime.now().minusDays(1), ZonedDateTime.now().plusDays(30));
-            ReflectionTestUtils.setField(coupon, "id", 1L);
-            ReflectionTestUtils.setField(coupon, "issuedQuantity", 50);
-
-            // when & then
-            assertThat(coupon.isIssuable()).isTrue();
-        }
-
-        @Test
-        @DisplayName("수량이 모두 소진되면 false를 반환한다.")
-        void returnsFalse_whenQuantityExhausted() {
-            // given
-            Coupon coupon = new Coupon("쿠폰", CouponScope.CART, null,
-                    DiscountType.FIXED_AMOUNT, 1000, 0, 0, 100,
-                    ZonedDateTime.now().minusDays(1), ZonedDateTime.now().plusDays(30));
-            ReflectionTestUtils.setField(coupon, "id", 1L);
-            ReflectionTestUtils.setField(coupon, "issuedQuantity", 100);
-
-            // when & then
-            assertThat(coupon.isIssuable()).isFalse();
-        }
-
-        @Test
-        @DisplayName("유효기간이 지나면 false를 반환한다.")
-        void returnsFalse_whenExpired() {
-            // given
-            Coupon coupon = new Coupon("쿠폰", CouponScope.CART, null,
-                    DiscountType.FIXED_AMOUNT, 1000, 0, 0, 100,
-                    ZonedDateTime.now().minusDays(30), ZonedDateTime.now().minusDays(1));
-            ReflectionTestUtils.setField(coupon, "id", 1L);
-            ReflectionTestUtils.setField(coupon, "issuedQuantity", 50);
-
-            // when & then
-            assertThat(coupon.isIssuable()).isFalse();
-        }
-
-        @Test
-        @DisplayName("유효기간 시작 전이면 false를 반환한다.")
-        void returnsFalse_whenBeforeValidFrom() {
-            // given
-            Coupon coupon = new Coupon("쿠폰", CouponScope.CART, null,
-                    DiscountType.FIXED_AMOUNT, 1000, 0, 0, 100,
-                    ZonedDateTime.now().plusDays(1), ZonedDateTime.now().plusDays(30));
-            ReflectionTestUtils.setField(coupon, "id", 1L);
-            ReflectionTestUtils.setField(coupon, "issuedQuantity", 50);
-
-            // when & then
-            assertThat(coupon.isIssuable()).isFalse();
+                    () -> assertThat(coupon.getDiscountValue()).isEqualTo(10));
         }
     }
 
@@ -115,7 +49,7 @@ class CouponTest {
         void returnsTrue_whenWithinValidity() {
             // given
             Coupon coupon = new Coupon("쿠폰", CouponScope.CART, null,
-                    DiscountType.FIXED_AMOUNT, 1000, 0, 0, 100,
+                    DiscountType.FIXED_AMOUNT, 1000, 0, 0,
                     ZonedDateTime.now().minusDays(1), ZonedDateTime.now().plusDays(30));
             ReflectionTestUtils.setField(coupon, "id", 1L);
 
@@ -128,69 +62,25 @@ class CouponTest {
         void returnsFalse_whenExpired() {
             // given
             Coupon coupon = new Coupon("쿠폰", CouponScope.CART, null,
-                    DiscountType.FIXED_AMOUNT, 1000, 0, 0, 100,
+                    DiscountType.FIXED_AMOUNT, 1000, 0, 0,
                     ZonedDateTime.now().minusDays(30), ZonedDateTime.now().minusDays(1));
             ReflectionTestUtils.setField(coupon, "id", 1L);
-            ReflectionTestUtils.setField(coupon, "issuedQuantity", 50);
 
             // when & then
             assertThat(coupon.isValid()).isFalse();
         }
-    }
-
-    @Nested
-    @DisplayName("쿠폰을 발급할 때,")
-    class Issue {
 
         @Test
-        @DisplayName("발급 가능하면 issuedQuantity가 1 증가한다.")
-        void incrementsIssuedQuantity_whenIssuable() {
+        @DisplayName("유효기간 시작 전이면 false를 반환한다.")
+        void returnsFalse_whenBeforeValidFrom() {
             // given
             Coupon coupon = new Coupon("쿠폰", CouponScope.CART, null,
-                    DiscountType.FIXED_AMOUNT, 1000, 0, 0, 100,
-                    ZonedDateTime.now().minusDays(1), ZonedDateTime.now().plusDays(30));
+                    DiscountType.FIXED_AMOUNT, 1000, 0, 0,
+                    ZonedDateTime.now().plusDays(1), ZonedDateTime.now().plusDays(30));
             ReflectionTestUtils.setField(coupon, "id", 1L);
-            ReflectionTestUtils.setField(coupon, "issuedQuantity", 50);
 
-            // when
-            coupon.issue();
-
-            // then
-            assertThat(coupon.getIssuedQuantity()).isEqualTo(51);
-        }
-
-        @Test
-        @DisplayName("수량이 소진되면 BAD_REQUEST 예외가 발생한다.")
-        void throwsBadRequest_whenQuantityExhausted() {
-            // given
-            Coupon coupon = new Coupon("쿠폰", CouponScope.CART, null,
-                    DiscountType.FIXED_AMOUNT, 1000, 0, 0, 100,
-                    ZonedDateTime.now().minusDays(1), ZonedDateTime.now().plusDays(30));
-            ReflectionTestUtils.setField(coupon, "id", 1L);
-            ReflectionTestUtils.setField(coupon, "issuedQuantity", 100);
-
-            // when
-            CoreException exception = assertThrows(CoreException.class, coupon::issue);
-
-            // then
-            assertThat(exception.getErrorType()).isEqualTo(ErrorType.BAD_REQUEST);
-        }
-
-        @Test
-        @DisplayName("유효기간이 지나면 BAD_REQUEST 예외가 발생한다.")
-        void throwsBadRequest_whenExpired() {
-            // given
-            Coupon coupon = new Coupon("쿠폰", CouponScope.CART, null,
-                    DiscountType.FIXED_AMOUNT, 1000, 0, 0, 100,
-                    ZonedDateTime.now().minusDays(30), ZonedDateTime.now().minusDays(1));
-            ReflectionTestUtils.setField(coupon, "id", 1L);
-            ReflectionTestUtils.setField(coupon, "issuedQuantity", 50);
-
-            // when
-            CoreException exception = assertThrows(CoreException.class, coupon::issue);
-
-            // then
-            assertThat(exception.getErrorType()).isEqualTo(ErrorType.BAD_REQUEST);
+            // when & then
+            assertThat(coupon.isValid()).isFalse();
         }
     }
 
@@ -203,7 +93,7 @@ class CouponTest {
         void returnsDiscountValue_whenFixedAmount() {
             // given
             Coupon coupon = new Coupon("1000원 할인", CouponScope.CART, null,
-                    DiscountType.FIXED_AMOUNT, 1000, 0, 0, 100,
+                    DiscountType.FIXED_AMOUNT, 1000, 0, 0,
                     ZonedDateTime.now().minusDays(1), ZonedDateTime.now().plusDays(30));
             ReflectionTestUtils.setField(coupon, "id", 1L);
 
@@ -219,7 +109,7 @@ class CouponTest {
         void returnsCalculatedAmount_whenFixedRate() {
             // given
             Coupon coupon = new Coupon("10% 할인", CouponScope.CART, null,
-                    DiscountType.FIXED_RATE, 10, 0, 0, 100,
+                    DiscountType.FIXED_RATE, 10, 0, 0,
                     ZonedDateTime.now().minusDays(1), ZonedDateTime.now().plusDays(30));
             ReflectionTestUtils.setField(coupon, "id", 1L);
 
@@ -235,7 +125,7 @@ class CouponTest {
         void capsAtMaxDiscountAmount_whenFixedRateWithCap() {
             // given
             Coupon coupon = new Coupon("10% 할인", CouponScope.CART, null,
-                    DiscountType.FIXED_RATE, 10, 0, 3000, 100,
+                    DiscountType.FIXED_RATE, 10, 0, 3000,
                     ZonedDateTime.now().minusDays(1), ZonedDateTime.now().plusDays(30));
             ReflectionTestUtils.setField(coupon, "id", 1L);
 
@@ -251,7 +141,7 @@ class CouponTest {
         void doesNotExceedApplicableAmount() {
             // given
             Coupon coupon = new Coupon("5000원 할인", CouponScope.CART, null,
-                    DiscountType.FIXED_AMOUNT, 5000, 0, 0, 100,
+                    DiscountType.FIXED_AMOUNT, 5000, 0, 0,
                     ZonedDateTime.now().minusDays(1), ZonedDateTime.now().plusDays(30));
             ReflectionTestUtils.setField(coupon, "id", 1L);
 

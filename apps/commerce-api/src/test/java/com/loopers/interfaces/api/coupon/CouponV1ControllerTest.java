@@ -1,6 +1,5 @@
 package com.loopers.interfaces.api.coupon;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.loopers.application.coupon.CouponFacade;
 import com.loopers.application.coupon.CouponInfo;
 import com.loopers.application.coupon.MyCouponInfo;
@@ -8,6 +7,7 @@ import com.loopers.config.WebMvcConfig;
 import com.loopers.domain.auth.LdapAuthService;
 import com.loopers.domain.coupon.CouponScope;
 import com.loopers.domain.coupon.DiscountType;
+import com.loopers.domain.coupon.MemberCouponStatus;
 import com.loopers.domain.member.Member;
 import com.loopers.domain.member.MemberService;
 import com.loopers.interfaces.api.auth.AdminAuthInterceptor;
@@ -48,9 +48,6 @@ class CouponV1ControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @Autowired
-    private ObjectMapper objectMapper;
-
     @MockBean
     private CouponFacade couponFacade;
 
@@ -61,31 +58,7 @@ class CouponV1ControllerTest {
     private LdapAuthService ldapAuthService;
 
     @Nested
-    @DisplayName("GET /api/v1/coupons")
-    class GetAvailableCoupons {
-
-        @Test
-        @DisplayName("인증 없이도 200 OK와 쿠폰 목록을 반환한다.")
-        void returnsOk_withoutAuth() throws Exception {
-            // given
-            ZonedDateTime now = ZonedDateTime.now();
-            CouponInfo couponInfo = new CouponInfo(
-                    1L, "신규 가입 쿠폰", CouponScope.CART, DiscountType.FIXED_AMOUNT,
-                    5000, 10000, 0, now.minusDays(1), now.plusDays(30), 90);
-
-            when(couponFacade.getAvailableCoupons()).thenReturn(List.of(couponInfo));
-
-            // when & then
-            mockMvc.perform(get("/api/v1/coupons"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.meta.result").value("SUCCESS"))
-                .andExpect(jsonPath("$.data[0].id").value(1))
-                .andExpect(jsonPath("$.data[0].name").value("신규 가입 쿠폰"));
-        }
-    }
-
-    @Nested
-    @DisplayName("POST /api/v1/coupons/{couponId}/download")
+    @DisplayName("POST /api/v1/coupons/{couponId}/issue")
     class DownloadCoupon {
 
         @Test
@@ -99,12 +72,12 @@ class CouponV1ControllerTest {
             ZonedDateTime now = ZonedDateTime.now();
             CouponInfo couponInfo = new CouponInfo(
                     1L, "신규 가입 쿠폰", CouponScope.CART, DiscountType.FIXED_AMOUNT,
-                    5000, 10000, 0, now.minusDays(1), now.plusDays(30), 89);
+                    5000, 10000, 0, now.minusDays(1), now.plusDays(30));
 
             when(couponFacade.downloadCoupon(any(Member.class), anyLong())).thenReturn(couponInfo);
 
             // when & then
-            mockMvc.perform(post("/api/v1/coupons/1/download")
+            mockMvc.perform(post("/api/v1/coupons/1/issue")
                     .header(HEADER_LOGIN_ID, "testuser1")
                     .header(HEADER_LOGIN_PW, "Password1!"))
                 .andExpect(status().isOk())
@@ -117,7 +90,7 @@ class CouponV1ControllerTest {
         @DisplayName("인증 없이 쿠폰을 다운로드하면 401을 반환한다.")
         void returnsUnauthorized_whenNoAuth() throws Exception {
             // when & then
-            mockMvc.perform(post("/api/v1/coupons/1/download"))
+            mockMvc.perform(post("/api/v1/coupons/1/issue"))
                 .andExpect(status().isUnauthorized());
         }
 
@@ -133,7 +106,7 @@ class CouponV1ControllerTest {
                 .thenThrow(new CoreException(ErrorType.CONFLICT, "이미 다운로드한 쿠폰입니다."));
 
             // when & then
-            mockMvc.perform(post("/api/v1/coupons/1/download")
+            mockMvc.perform(post("/api/v1/coupons/1/issue")
                     .header(HEADER_LOGIN_ID, "testuser1")
                     .header(HEADER_LOGIN_PW, "Password1!"))
                 .andExpect(status().isConflict())
@@ -153,7 +126,7 @@ class CouponV1ControllerTest {
                 .thenThrow(new CoreException(ErrorType.BAD_REQUEST, "쿠폰 발급이 불가합니다."));
 
             // when & then
-            mockMvc.perform(post("/api/v1/coupons/1/download")
+            mockMvc.perform(post("/api/v1/coupons/1/issue")
                     .header(HEADER_LOGIN_ID, "testuser1")
                     .header(HEADER_LOGIN_PW, "Password1!"))
                 .andExpect(status().isBadRequest())
@@ -173,7 +146,7 @@ class CouponV1ControllerTest {
                 .thenThrow(new CoreException(ErrorType.NOT_FOUND, "쿠폰을 찾을 수 없습니다."));
 
             // when & then
-            mockMvc.perform(post("/api/v1/coupons/1/download")
+            mockMvc.perform(post("/api/v1/coupons/1/issue")
                     .header(HEADER_LOGIN_ID, "testuser1")
                     .header(HEADER_LOGIN_PW, "Password1!"))
                 .andExpect(status().isNotFound())
@@ -183,11 +156,11 @@ class CouponV1ControllerTest {
     }
 
     @Nested
-    @DisplayName("GET /api/v1/coupons/me")
+    @DisplayName("GET /api/v1/users/me/coupons")
     class GetMyCoupons {
 
         @Test
-        @DisplayName("인증된 사용자가 내 쿠폰 목록을 조회하면 200 OK를 반환한다.")
+        @DisplayName("인증된 사용자가 내 쿠폰 목록을 조회하면 200 OK와 상태를 포함한 쿠폰 목록을 반환한다.")
         void returnsOk_whenAuthenticated() throws Exception {
             // given
             Member mockMember = mock(Member.class);
@@ -195,28 +168,41 @@ class CouponV1ControllerTest {
             when(memberService.authenticate("testuser1", "Password1!")).thenReturn(mockMember);
 
             ZonedDateTime now = ZonedDateTime.now();
-            MyCouponInfo myCouponInfo = new MyCouponInfo(
-                    10L, "신규 가입 쿠폰", CouponScope.CART, DiscountType.FIXED_AMOUNT,
-                    5000, 10000, 0, now.plusDays(30));
+            MyCouponInfo availableCoupon = new MyCouponInfo(
+                    10L, "사용 가능 쿠폰", CouponScope.CART, DiscountType.FIXED_AMOUNT,
+                    5000, 10000, 0, now.plusDays(30), MemberCouponStatus.AVAILABLE);
+            MyCouponInfo usedCoupon = new MyCouponInfo(
+                    11L, "사용된 쿠폰", CouponScope.CART, DiscountType.FIXED_AMOUNT,
+                    3000, 5000, 0, now.plusDays(10), MemberCouponStatus.USED);
+            MyCouponInfo expiredCoupon = new MyCouponInfo(
+                    12L, "만료된 쿠폰", CouponScope.CART, DiscountType.FIXED_RATE,
+                    10, 0, 5000, now.minusDays(1), MemberCouponStatus.EXPIRED);
 
-            when(couponFacade.getMyCoupons(any(Member.class))).thenReturn(List.of(myCouponInfo));
+            when(couponFacade.getMyCoupons(any(Member.class)))
+                    .thenReturn(List.of(availableCoupon, usedCoupon, expiredCoupon));
 
             // when & then
-            mockMvc.perform(get("/api/v1/coupons/me")
+            mockMvc.perform(get("/api/v1/users/me/coupons")
                     .header(HEADER_LOGIN_ID, "testuser1")
                     .header(HEADER_LOGIN_PW, "Password1!"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.meta.result").value("SUCCESS"))
                 .andExpect(jsonPath("$.data[0].memberCouponId").value(10))
-                .andExpect(jsonPath("$.data[0].couponName").value("신규 가입 쿠폰"));
+                .andExpect(jsonPath("$.data[0].couponName").value("사용 가능 쿠폰"))
+                .andExpect(jsonPath("$.data[0].status").value("AVAILABLE"))
+                .andExpect(jsonPath("$.data[1].memberCouponId").value(11))
+                .andExpect(jsonPath("$.data[1].status").value("USED"))
+                .andExpect(jsonPath("$.data[2].memberCouponId").value(12))
+                .andExpect(jsonPath("$.data[2].status").value("EXPIRED"));
         }
 
         @Test
         @DisplayName("인증 없이 내 쿠폰 목록을 조회하면 401을 반환한다.")
         void returnsUnauthorized_whenNoAuth() throws Exception {
             // when & then
-            mockMvc.perform(get("/api/v1/coupons/me"))
+            mockMvc.perform(get("/api/v1/users/me/coupons"))
                 .andExpect(status().isUnauthorized());
         }
     }
+
 }

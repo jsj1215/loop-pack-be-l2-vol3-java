@@ -4,6 +4,7 @@ import com.loopers.domain.coupon.Coupon;
 import com.loopers.domain.coupon.CouponScope;
 import com.loopers.domain.coupon.DiscountType;
 import com.loopers.domain.coupon.MemberCoupon;
+import com.loopers.domain.coupon.MemberCouponStatus;
 import com.loopers.domain.member.BirthDate;
 import com.loopers.domain.member.Email;
 import com.loopers.domain.member.LoginId;
@@ -97,7 +98,6 @@ class CouponV1ApiE2ETest {
                 1000,
                 5000,
                 0,
-                100,
                 ZonedDateTime.now().minusDays(1),
                 ZonedDateTime.now().plusDays(30));
         return couponJpaRepository.save(coupon);
@@ -110,35 +110,7 @@ class CouponV1ApiE2ETest {
         return headers;
     }
 
-    @DisplayName("GET /api/v1/coupons")
-    @Nested
-    class GetAvailableCoupons {
-
-        @Test
-        @DisplayName("다운로드 가능한 쿠폰 목록을 조회하면, 200 OK와 쿠폰 목록을 반환한다.")
-        void success_whenGetCoupons() {
-            // arrange
-            saveValidCoupon();
-
-            // act
-            ParameterizedTypeReference<ApiResponse<List<CouponV1Dto.CouponResponse>>> responseType =
-                    new ParameterizedTypeReference<>() {};
-            ResponseEntity<ApiResponse<List<CouponV1Dto.CouponResponse>>> response = testRestTemplate.exchange(
-                    ENDPOINT_COUPONS,
-                    HttpMethod.GET,
-                    null,
-                    responseType);
-
-            // assert
-            assertAll(
-                    () -> assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK),
-                    () -> assertThat(response.getBody()).isNotNull(),
-                    () -> assertThat(response.getBody().data()).isNotEmpty(),
-                    () -> assertThat(response.getBody().data().get(0).name()).isEqualTo("테스트쿠폰"));
-        }
-    }
-
-    @DisplayName("POST /api/v1/coupons/{couponId}/download")
+    @DisplayName("POST /api/v1/coupons/{couponId}/issue")
     @Nested
     class DownloadCoupon {
 
@@ -153,7 +125,7 @@ class CouponV1ApiE2ETest {
             ParameterizedTypeReference<ApiResponse<CouponV1Dto.CouponResponse>> responseType =
                     new ParameterizedTypeReference<>() {};
             ResponseEntity<ApiResponse<CouponV1Dto.CouponResponse>> response = testRestTemplate.exchange(
-                    ENDPOINT_COUPONS + "/" + coupon.getId() + "/download",
+                    ENDPOINT_COUPONS + "/" + coupon.getId() + "/issue",
                     HttpMethod.POST,
                     new HttpEntity<>(memberAuthHeaders()),
                     responseType);
@@ -175,7 +147,7 @@ class CouponV1ApiE2ETest {
             ParameterizedTypeReference<ApiResponse<CouponV1Dto.CouponResponse>> responseType =
                     new ParameterizedTypeReference<>() {};
             ResponseEntity<ApiResponse<CouponV1Dto.CouponResponse>> response = testRestTemplate.exchange(
-                    ENDPOINT_COUPONS + "/" + coupon.getId() + "/download",
+                    ENDPOINT_COUPONS + "/" + coupon.getId() + "/issue",
                     HttpMethod.POST,
                     null,
                     responseType);
@@ -198,7 +170,7 @@ class CouponV1ApiE2ETest {
             ParameterizedTypeReference<ApiResponse<CouponV1Dto.CouponResponse>> responseType =
                     new ParameterizedTypeReference<>() {};
             ResponseEntity<ApiResponse<CouponV1Dto.CouponResponse>> response = testRestTemplate.exchange(
-                    ENDPOINT_COUPONS + "/" + coupon.getId() + "/download",
+                    ENDPOINT_COUPONS + "/" + coupon.getId() + "/issue",
                     HttpMethod.POST,
                     new HttpEntity<>(memberAuthHeaders()),
                     responseType);
@@ -208,12 +180,14 @@ class CouponV1ApiE2ETest {
         }
     }
 
-    @DisplayName("GET /api/v1/coupons/me")
+    @DisplayName("GET /api/v1/users/me/coupons")
     @Nested
     class GetMyCoupons {
 
+        private static final String ENDPOINT_MY_COUPONS = "/api/v1/users/me/coupons";
+
         @Test
-        @DisplayName("인증된 사용자가 내 쿠폰 목록을 조회하면, 200 OK와 쿠폰 목록을 반환한다.")
+        @DisplayName("인증된 사용자가 내 쿠폰 목록을 조회하면, 200 OK와 상태를 포함한 쿠폰 목록을 반환한다.")
         void success_whenAuthenticated() {
             // arrange
             Member member = saveMember();
@@ -226,7 +200,7 @@ class CouponV1ApiE2ETest {
             ParameterizedTypeReference<ApiResponse<List<CouponV1Dto.MyCouponResponse>>> responseType =
                     new ParameterizedTypeReference<>() {};
             ResponseEntity<ApiResponse<List<CouponV1Dto.MyCouponResponse>>> response = testRestTemplate.exchange(
-                    ENDPOINT_COUPONS + "/me",
+                    ENDPOINT_MY_COUPONS,
                     HttpMethod.GET,
                     new HttpEntity<>(memberAuthHeaders()),
                     responseType);
@@ -235,7 +209,8 @@ class CouponV1ApiE2ETest {
             assertAll(
                     () -> assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK),
                     () -> assertThat(response.getBody()).isNotNull(),
-                    () -> assertThat(response.getBody().data()).isNotEmpty());
+                    () -> assertThat(response.getBody().data()).isNotEmpty(),
+                    () -> assertThat(response.getBody().data().get(0).status()).isEqualTo(MemberCouponStatus.AVAILABLE));
         }
 
         @Test
@@ -245,7 +220,7 @@ class CouponV1ApiE2ETest {
             ParameterizedTypeReference<ApiResponse<List<CouponV1Dto.MyCouponResponse>>> responseType =
                     new ParameterizedTypeReference<>() {};
             ResponseEntity<ApiResponse<List<CouponV1Dto.MyCouponResponse>>> response = testRestTemplate.exchange(
-                    ENDPOINT_COUPONS + "/me",
+                    ENDPOINT_MY_COUPONS,
                     HttpMethod.GET,
                     null,
                     responseType);

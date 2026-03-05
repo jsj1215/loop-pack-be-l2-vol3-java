@@ -10,7 +10,9 @@ public interface CouponRepository {
 
     Optional<Coupon> findById(Long id);
 
-    List<Coupon> findAllValid();
+    Optional<Coupon> findByIdWithLock(Long id);
+
+    List<Coupon> findByIds(List<Long> ids);
 
     Page<Coupon> findAll(Pageable pageable);
 

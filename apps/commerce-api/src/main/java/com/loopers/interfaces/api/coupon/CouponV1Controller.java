@@ -18,28 +18,30 @@ import java.util.List;
 
 @RequiredArgsConstructor
 @RestController
-@RequestMapping("/api/v1/coupons")
+@RequestMapping("/api/v1")
 public class CouponV1Controller {
 
     private final CouponFacade couponFacade;
 
-    @GetMapping
-    public ApiResponse<List<CouponV1Dto.CouponResponse>> getAvailableCoupons() {
-        List<CouponInfo> coupons = couponFacade.getAvailableCoupons();
-        List<CouponV1Dto.CouponResponse> response = coupons.stream()
-                .map(CouponV1Dto.CouponResponse::from)
-                .toList();
-        return ApiResponse.success(response);
-    }
-
-    @PostMapping("/{couponId}/download")
+    /**
+     * 쿠폰 발급 요청
+     * @param member
+     * @param couponId
+     * @return
+     */
+    @PostMapping("/coupons/{couponId}/issue")
     public ApiResponse<CouponV1Dto.CouponResponse> downloadCoupon(
             @LoginMember Member member, @PathVariable Long couponId) {
         CouponInfo info = couponFacade.downloadCoupon(member, couponId);
         return ApiResponse.success(CouponV1Dto.CouponResponse.from(info));
     }
 
-    @GetMapping("/me")
+    /**
+     * 내가 발급 받은 쿠폰 목록
+     * @param member
+     * @return
+     */
+    @GetMapping("/users/me/coupons")
     public ApiResponse<List<CouponV1Dto.MyCouponResponse>> getMyCoupons(@LoginMember Member member) {
         List<MyCouponInfo> myCoupons = couponFacade.getMyCoupons(member);
         List<CouponV1Dto.MyCouponResponse> response = myCoupons.stream()

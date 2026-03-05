@@ -7,7 +7,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
-import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -23,9 +22,13 @@ public class CouponRepositoryImpl implements CouponRepository {
     }
 
     @Override
-    public List<Coupon> findAllValid() {
-        ZonedDateTime now = ZonedDateTime.now();
-        return couponJpaRepository.findAllValid(now);
+    public Optional<Coupon> findByIdWithLock(Long id) {
+        return couponJpaRepository.findByIdWithLockAndDeletedAtIsNull(id);
+    }
+
+    @Override
+    public List<Coupon> findByIds(List<Long> ids) {
+        return couponJpaRepository.findAllByIdInAndDeletedAtIsNull(ids);
     }
 
     @Override

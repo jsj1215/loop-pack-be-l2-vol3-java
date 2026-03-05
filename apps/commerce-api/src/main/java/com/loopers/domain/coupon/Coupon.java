@@ -40,12 +40,6 @@ public class Coupon extends BaseEntity {
     @Column(name = "max_discount_amount", nullable = false)
     private int maxDiscountAmount;
 
-    @Column(name = "total_quantity", nullable = false)
-    private int totalQuantity;
-
-    @Column(name = "issued_quantity", nullable = false)
-    private int issuedQuantity;
-
     @Column(name = "valid_from", nullable = false)
     private ZonedDateTime validFrom;
 
@@ -56,8 +50,9 @@ public class Coupon extends BaseEntity {
 
     public Coupon(String name, CouponScope couponScope, Long targetId,
                   DiscountType discountType, int discountValue, int minOrderAmount,
-                  int maxDiscountAmount, int totalQuantity,
+                  int maxDiscountAmount,
                   ZonedDateTime validFrom, ZonedDateTime validTo) {
+        validateCoupon(name, discountType, discountValue, validFrom, validTo);
         this.name = name;
         this.couponScope = couponScope;
         this.targetId = targetId;
@@ -65,21 +60,46 @@ public class Coupon extends BaseEntity {
         this.discountValue = discountValue;
         this.minOrderAmount = minOrderAmount;
         this.maxDiscountAmount = maxDiscountAmount;
-        this.totalQuantity = totalQuantity;
-        this.issuedQuantity = 0;
         this.validFrom = validFrom;
         this.validTo = validTo;
     }
 
     /**
-     * 쿠폰 발급 가능 여부 확인
-     * : 발급 수량이 총 수량 미만이고, 현재 시간이 유효기간 내에 있어야 한다.
+     * 쿠폰 정보 수정
      */
-    public boolean isIssuable() {
-        ZonedDateTime now = ZonedDateTime.now();
-        return issuedQuantity < totalQuantity
-                && !now.isBefore(validFrom)
-                && !now.isAfter(validTo);
+    public void updateInfo(String name, CouponScope couponScope, Long targetId,
+                           DiscountType discountType, int discountValue, int minOrderAmount,
+                           int maxDiscountAmount,
+                           ZonedDateTime validFrom, ZonedDateTime validTo) {
+        validateCoupon(name, discountType, discountValue, validFrom, validTo);
+        this.name = name;
+        this.couponScope = couponScope;
+        this.targetId = targetId;
+        this.discountType = discountType;
+        this.discountValue = discountValue;
+        this.minOrderAmount = minOrderAmount;
+        this.maxDiscountAmount = maxDiscountAmount;
+        this.validFrom = validFrom;
+        this.validTo = validTo;
+    }
+
+    private static void validateCoupon(String name, DiscountType discountType, int discountValue,
+                                       ZonedDateTime validFrom, ZonedDateTime validTo) {
+        if (name == null || name.isBlank()) {
+            throw new CoreException(ErrorType.BAD_REQUEST, "쿠폰 이름은 필수입니다.");
+        }
+        if (discountValue <= 0) {
+            throw new CoreException(ErrorType.BAD_REQUEST, "할인 값은 0보다 커야 합니다.");
+        }
+        if (discountType == DiscountType.FIXED_RATE && discountValue > 100) {
+            throw new CoreException(ErrorType.BAD_REQUEST, "정률 할인은 100%를 초과할 수 없습니다.");
+        }
+        if (validFrom == null || validTo == null) {
+            throw new CoreException(ErrorType.BAD_REQUEST, "유효기간은 필수입니다.");
+        }
+        if (!validFrom.isBefore(validTo)) {
+            throw new CoreException(ErrorType.BAD_REQUEST, "유효기간 시작일은 종료일보다 이전이어야 합니다.");
+        }
     }
 
     /**
@@ -88,16 +108,6 @@ public class Coupon extends BaseEntity {
     public boolean isValid() {
         ZonedDateTime now = ZonedDateTime.now();
         return !now.isBefore(validFrom) && !now.isAfter(validTo);
-    }
-
-    /**
-     * 쿠폰 발급 처리
-     */
-    public void issue() {
-        if (!isIssuable()) {
-            throw new CoreException(ErrorType.BAD_REQUEST, "쿠폰 발급이 불가합니다.");
-        }
-        this.issuedQuantity++;
     }
 
     /**

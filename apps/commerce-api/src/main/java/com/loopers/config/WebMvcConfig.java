@@ -30,7 +30,6 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/api/v1/brands/**",
                         "/api/v1/products",
                         "/api/v1/products/{id}",
-                        "/api/v1/coupons",
                         "/api/v1/examples/**"
                 );
 

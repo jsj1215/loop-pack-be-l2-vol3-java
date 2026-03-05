@@ -10,11 +10,15 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
+import jakarta.persistence.Version;
 import lombok.Getter;
 
 @Getter
 @Entity
-@Table(name = "member_coupon")
+@Table(name = "member_coupon", uniqueConstraints = {
+        @UniqueConstraint(name = "uk_member_coupon", columnNames = {"member_id", "coupon_id"})
+})
 public class MemberCoupon extends BaseEntity {
 
     @Column(name = "member_id", nullable = false)
@@ -32,6 +36,10 @@ public class MemberCoupon extends BaseEntity {
 
     @Column(name = "used_at")
     private ZonedDateTime usedAt;
+
+    @Version
+    @Column(name = "version")
+    private Long version;
 
     protected MemberCoupon() {}
 
