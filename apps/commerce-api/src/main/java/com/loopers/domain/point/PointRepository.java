@@ -13,5 +13,7 @@ public interface PointRepository {
 
     Optional<Point> findByMemberId(Long memberId);
 
+    Optional<Point> findByMemberIdWithLock(Long memberId);
+
     Point save(Point point);
 }

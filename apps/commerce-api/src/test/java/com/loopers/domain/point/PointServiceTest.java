@@ -92,7 +92,7 @@ class PointServiceTest {
             // given
             Long memberId = 1L;
 
-            when(pointRepository.findByMemberId(memberId)).thenReturn(Optional.empty());
+            when(pointRepository.findByMemberIdWithLock(memberId)).thenReturn(Optional.empty());
 
             // when
             CoreException exception = assertThrows(CoreException.class,
@@ -112,7 +112,7 @@ class PointServiceTest {
             Long memberId = 1L;
             Point point = createPointWithId(1L, memberId, 1000);
 
-            when(pointRepository.findByMemberId(memberId)).thenReturn(Optional.of(point));
+            when(pointRepository.findByMemberIdWithLock(memberId)).thenReturn(Optional.of(point));
 
             // when
             CoreException exception = assertThrows(CoreException.class,
@@ -133,7 +133,7 @@ class PointServiceTest {
             Long memberId = 1L;
             Point point = createPointWithId(1L, memberId, 1000);
 
-            when(pointRepository.findByMemberId(memberId)).thenReturn(Optional.of(point));
+            when(pointRepository.findByMemberIdWithLock(memberId)).thenReturn(Optional.of(point));
             when(pointRepository.save(any(Point.class))).thenAnswer(invocation -> invocation.getArgument(0));
             when(pointHistoryRepository.save(any(PointHistory.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -158,7 +158,7 @@ class PointServiceTest {
             // given
             Long memberId = 1L;
 
-            when(pointRepository.findByMemberId(memberId)).thenReturn(Optional.empty());
+            when(pointRepository.findByMemberIdWithLock(memberId)).thenReturn(Optional.empty());
 
             // when
             CoreException exception = assertThrows(CoreException.class,
@@ -178,7 +178,7 @@ class PointServiceTest {
             Long memberId = 1L;
             Point point = createPointWithId(1L, memberId, 100);
 
-            when(pointRepository.findByMemberId(memberId)).thenReturn(Optional.of(point));
+            when(pointRepository.findByMemberIdWithLock(memberId)).thenReturn(Optional.of(point));
 
             // when
             CoreException exception = assertThrows(CoreException.class,
@@ -199,7 +199,7 @@ class PointServiceTest {
             Long memberId = 1L;
             Point point = createPointWithId(1L, memberId, 1000);
 
-            when(pointRepository.findByMemberId(memberId)).thenReturn(Optional.of(point));
+            when(pointRepository.findByMemberIdWithLock(memberId)).thenReturn(Optional.of(point));
             when(pointRepository.save(any(Point.class))).thenAnswer(invocation -> invocation.getArgument(0));
             when(pointHistoryRepository.save(any(PointHistory.class))).thenAnswer(invocation -> invocation.getArgument(0));
 

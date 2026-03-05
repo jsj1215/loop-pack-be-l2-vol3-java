@@ -23,6 +23,11 @@ public class PointRepositoryImpl implements PointRepository {
     }
 
     @Override
+    public Optional<Point> findByMemberIdWithLock(Long memberId) {
+        return pointJpaRepository.findByMemberIdWithLockAndDeletedAtIsNull(memberId);
+    }
+
+    @Override
     public Point save(Point point) {
         return pointJpaRepository.save(point);
     }

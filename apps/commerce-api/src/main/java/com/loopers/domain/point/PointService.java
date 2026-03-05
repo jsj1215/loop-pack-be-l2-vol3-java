@@ -28,9 +28,10 @@ public class PointService {
 
     /**
      * 포인트 충전
+     * 반드시 상위 레이어(@Transactional)의 트랜잭션 내에서 호출되어야 한다.
      */
     public void chargePoint(Long memberId, int amount, String description) {
-        Point point = pointRepository.findByMemberId(memberId)
+        Point point = pointRepository.findByMemberIdWithLock(memberId)
                 .orElseThrow(() -> new CoreException(ErrorType.NOT_FOUND, "포인트 정보를 찾을 수 없습니다."));
 
         point.charge(amount);
@@ -42,9 +43,10 @@ public class PointService {
 
     /**
      * 포인트 사용
+     * 반드시 상위 레이어(@Transactional)의 트랜잭션 내에서 호출되어야 한다.
      */
     public void usePoint(Long memberId, int amount, String description, Long orderId) {
-        Point point = pointRepository.findByMemberId(memberId)
+        Point point = pointRepository.findByMemberIdWithLock(memberId)
                 .orElseThrow(() -> new CoreException(ErrorType.NOT_FOUND, "포인트 정보를 찾을 수 없습니다."));
 
         point.use(amount);
