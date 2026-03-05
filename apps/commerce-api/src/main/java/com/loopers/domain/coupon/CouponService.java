@@ -127,6 +127,13 @@ public class CouponService {
             throw new CoreException(ErrorType.NOT_FOUND, "쿠폰을 찾을 수 없습니다.");
         }
 
+        Coupon coupon = couponRepository.findById(memberCoupon.getCouponId())
+                .orElseThrow(() -> new CoreException(ErrorType.NOT_FOUND, "쿠폰을 찾을 수 없습니다."));
+
+        if (!coupon.isValid()) {
+            throw new CoreException(ErrorType.BAD_REQUEST, "유효기간이 만료된 쿠폰입니다.");
+        }
+
         memberCoupon.use(orderId);
         return memberCouponRepository.save(memberCoupon);
     }

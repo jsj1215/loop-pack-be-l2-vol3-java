@@ -76,7 +76,7 @@ class MemberCouponTest {
             // then
             assertAll(
                     () -> assertThat(exception.getErrorType()).isEqualTo(ErrorType.BAD_REQUEST),
-                    () -> assertThat(exception.getMessage()).contains("이미 사용된 쿠폰"));
+                    () -> assertThat(exception.getMessage()).contains("사용할 수 없는 쿠폰"));
         }
     }
 

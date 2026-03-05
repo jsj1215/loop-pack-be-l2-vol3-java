@@ -54,7 +54,7 @@ public class MemberCoupon extends BaseEntity {
      */
     public void use(Long orderId) {
         if (this.status != MemberCouponStatus.AVAILABLE) {
-            throw new CoreException(ErrorType.BAD_REQUEST, "이미 사용된 쿠폰입니다.");
+            throw new CoreException(ErrorType.BAD_REQUEST, "사용할 수 없는 쿠폰입니다.");
         }
         this.status = MemberCouponStatus.USED;
         this.orderId = orderId;

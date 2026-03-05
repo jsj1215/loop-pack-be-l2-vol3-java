@@ -522,7 +522,11 @@ class CouponServiceTest {
             // given
             MemberCoupon memberCoupon = createMemberCouponWithId(1L, 1L, 10L,
                     MemberCouponStatus.AVAILABLE, null);
+            Coupon coupon = createCouponWithId(10L, "쿠폰", CouponScope.CART, null,
+                    DiscountType.FIXED_AMOUNT, 1000, 0, 0,
+                    ZonedDateTime.now().minusDays(1), ZonedDateTime.now().plusDays(30));
             when(memberCouponRepository.findById(1L)).thenReturn(Optional.of(memberCoupon));
+            when(couponRepository.findById(10L)).thenReturn(Optional.of(coupon));
             when(memberCouponRepository.save(any(MemberCoupon.class)))
                     .thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -534,6 +538,29 @@ class CouponServiceTest {
                     () -> assertThat(result.getStatus()).isEqualTo(MemberCouponStatus.USED),
                     () -> assertThat(result.getOrderId()).isEqualTo(100L),
                     () -> verify(memberCouponRepository, times(1)).save(any(MemberCoupon.class)));
+        }
+
+        @Test
+        @DisplayName("유효기간이 만료된 쿠폰이면 BAD_REQUEST 예외가 발생한다.")
+        void throwsBadRequest_whenCouponExpired() {
+            // given
+            MemberCoupon memberCoupon = createMemberCouponWithId(1L, 1L, 10L,
+                    MemberCouponStatus.AVAILABLE, null);
+            Coupon expiredCoupon = createCouponWithId(10L, "만료 쿠폰", CouponScope.CART, null,
+                    DiscountType.FIXED_AMOUNT, 1000, 0, 0,
+                    ZonedDateTime.now().minusDays(30), ZonedDateTime.now().minusDays(1));
+            when(memberCouponRepository.findById(1L)).thenReturn(Optional.of(memberCoupon));
+            when(couponRepository.findById(10L)).thenReturn(Optional.of(expiredCoupon));
+
+            // when
+            CoreException exception = assertThrows(CoreException.class,
+                    () -> couponService.useCoupon(1L, 1L, 100L));
+
+            // then
+            assertAll(
+                    () -> assertThat(exception.getErrorType()).isEqualTo(ErrorType.BAD_REQUEST),
+                    () -> assertThat(exception.getMessage()).contains("유효기간이 만료"),
+                    () -> verify(memberCouponRepository, never()).save(any(MemberCoupon.class)));
         }
 
         @Test
