@@ -405,14 +405,15 @@ class ProductServiceTest {
         void deductsAndSavesOption_whenSufficient() {
             // given
             ProductOption option = createProductOptionWithId(1L, 1L, "M 사이즈", 10);
-            when(productRepository.findOptionById(1L)).thenReturn(Optional.of(option));
+            when(productRepository.findOptionByIdWithLock(1L)).thenReturn(Optional.of(option));
 
             // when
-            productService.deductStock(1L, 3);
+            ProductOption result = productService.deductStock(1L, 3);
 
             // then
             assertAll(
-                    () -> assertThat(option.getStockQuantity()).isEqualTo(7),
+                    () -> assertThat(result).isEqualTo(option),
+                    () -> assertThat(result.getStockQuantity()).isEqualTo(7),
                     () -> verify(productRepository, times(1)).saveOption(any(ProductOption.class))
             );
         }
@@ -422,7 +423,7 @@ class ProductServiceTest {
         void throwsBadRequest_whenInsufficient() {
             // given
             ProductOption option = createProductOptionWithId(1L, 1L, "M 사이즈", 2);
-            when(productRepository.findOptionById(1L)).thenReturn(Optional.of(option));
+            when(productRepository.findOptionByIdWithLock(1L)).thenReturn(Optional.of(option));
 
             // when
             CoreException exception = assertThrows(CoreException.class,
@@ -439,7 +440,7 @@ class ProductServiceTest {
         @DisplayName("존재하지 않는 옵션의 재고를 차감하면 NOT_FOUND 예외가 발생한다.")
         void throwsNotFound_whenOptionNotExists() {
             // given
-            when(productRepository.findOptionById(999L)).thenReturn(Optional.empty());
+            when(productRepository.findOptionByIdWithLock(999L)).thenReturn(Optional.empty());
 
             // when
             CoreException exception = assertThrows(CoreException.class,
@@ -459,7 +460,7 @@ class ProductServiceTest {
         void restoresAndSavesOption() {
             // given
             ProductOption option = createProductOptionWithId(1L, 1L, "M 사이즈", 5);
-            when(productRepository.findOptionById(1L)).thenReturn(Optional.of(option));
+            when(productRepository.findOptionByIdWithLock(1L)).thenReturn(Optional.of(option));
 
             // when
             productService.restoreStock(1L, 3);
@@ -475,7 +476,7 @@ class ProductServiceTest {
         @DisplayName("존재하지 않는 옵션의 재고를 복원하면 NOT_FOUND 예외가 발생한다.")
         void throwsNotFound_whenOptionNotExists() {
             // given
-            when(productRepository.findOptionById(999L)).thenReturn(Optional.empty());
+            when(productRepository.findOptionByIdWithLock(999L)).thenReturn(Optional.empty());
 
             // when
             CoreException exception = assertThrows(CoreException.class,

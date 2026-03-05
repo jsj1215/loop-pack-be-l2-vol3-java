@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
+
 import java.util.List;
 
 @RequiredArgsConstructor
@@ -32,6 +33,15 @@ public class ProductService {
 
     public Product findById(Long productId) {
         return productRepository.findById(productId)
+                .orElseThrow(() -> new CoreException(ErrorType.NOT_FOUND, "상품을 찾을 수 없습니다."));
+    }
+
+    /**
+     * Product 엔티티만 조회한다 (옵션은 로드하지 않음).
+     * 비관적 락으로 ProductOption을 조회하기 전에 사용하여 1차 캐시 오염을 방지한다.
+     */
+    public Product findProductOnly(Long productId) {
+        return productRepository.findProductOnly(productId)
                 .orElseThrow(() -> new CoreException(ErrorType.NOT_FOUND, "상품을 찾을 수 없습니다."));
     }
 
@@ -80,14 +90,25 @@ public class ProductService {
         return productRepository.findOptionIdsByBrandId(brandId);
     }
 
-    public void deductStock(Long optionId, int quantity) {
-        ProductOption option = findOptionById(optionId);
+    /**
+     * 재고를 차감하고 차감된 옵션을 반환한다.
+     * 반드시 상위 레이어(@Transactional)의 트랜잭션 내에서 호출되어야 한다.
+     */
+    public ProductOption deductStock(Long optionId, int quantity) {
+        ProductOption option = productRepository.findOptionByIdWithLock(optionId)
+                .orElseThrow(() -> new CoreException(ErrorType.NOT_FOUND, "상품 옵션을 찾을 수 없습니다."));
         option.deductStock(quantity);
         productRepository.saveOption(option);
+        return option;
     }
 
+    /**
+     * 재고를 복원한다.
+     * 반드시 상위 레이어(@Transactional)의 트랜잭션 내에서 호출되어야 한다.
+     */
     public void restoreStock(Long optionId, int quantity) {
-        ProductOption option = findOptionById(optionId);
+        ProductOption option = productRepository.findOptionByIdWithLock(optionId)
+                .orElseThrow(() -> new CoreException(ErrorType.NOT_FOUND, "상품 옵션을 찾을 수 없습니다."));
         option.restoreStock(quantity);
         productRepository.saveOption(option);
     }
