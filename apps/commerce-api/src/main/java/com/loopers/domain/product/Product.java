@@ -95,16 +95,6 @@ public class Product extends BaseEntity {
         };
     }
 
-    public void incrementLikeCount() {
-        this.likeCount++;
-    }
-
-    public void decrementLikeCount() {
-        if (this.likeCount > 0) {
-            this.likeCount--;
-        }
-    }
-
     public void updateInfo(String name, int price, int supplyPrice, int discountPrice,
                            int shippingFee, String description, ProductStatus status,
                            String displayYn, List<ProductOption> options) {

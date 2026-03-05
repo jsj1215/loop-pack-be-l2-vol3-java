@@ -105,53 +105,6 @@ class ProductTest {
     }
 
     @Nested
-    @DisplayName("좋아요 수를 변경할 때,")
-    class LikeCount {
-
-        @Test
-        @DisplayName("좋아요 수를 증가시키면 1 증가한다.")
-        void incrementsLikeCount() {
-            // given
-            Product product = createProductWithId(1L, createBrandWithId(1L), "에어맥스", 150000, 120000, 10000,
-                    3000, 0, "설명", MarginType.AMOUNT, ProductStatus.ON_SALE, "Y", List.of());
-
-            // when
-            product.incrementLikeCount();
-
-            // then
-            assertThat(product.getLikeCount()).isEqualTo(1);
-        }
-
-        @Test
-        @DisplayName("좋아요 수를 감소시키면 1 감소한다.")
-        void decrementsLikeCount() {
-            // given
-            Product product = createProductWithId(1L, createBrandWithId(1L), "에어맥스", 150000, 120000, 10000,
-                    3000, 5, "설명", MarginType.AMOUNT, ProductStatus.ON_SALE, "Y", List.of());
-
-            // when
-            product.decrementLikeCount();
-
-            // then
-            assertThat(product.getLikeCount()).isEqualTo(4);
-        }
-
-        @Test
-        @DisplayName("좋아요 수가 0일 때 감소시키면 0을 유지한다.")
-        void staysZero_whenDecrementAtZero() {
-            // given
-            Product product = createProductWithId(1L, createBrandWithId(1L), "에어맥스", 150000, 120000, 10000,
-                    3000, 0, "설명", MarginType.AMOUNT, ProductStatus.ON_SALE, "Y", List.of());
-
-            // when
-            product.decrementLikeCount();
-
-            // then
-            assertThat(product.getLikeCount()).isEqualTo(0);
-        }
-    }
-
-    @Nested
     @DisplayName("상품 정보를 수정할 때,")
     class UpdateInfo {
 

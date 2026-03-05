@@ -81,7 +81,6 @@ class LikeServiceTest {
             when(productRepository.findById(PRODUCT_ID)).thenReturn(Optional.of(product));
             when(likeRepository.findByMemberIdAndProductId(MEMBER_ID, PRODUCT_ID)).thenReturn(Optional.empty());
             when(likeRepository.save(any(Like.class))).thenAnswer(invocation -> invocation.getArgument(0));
-            when(productRepository.save(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
             // when
             Like result = likeService.like(MEMBER_ID, PRODUCT_ID);
@@ -92,7 +91,7 @@ class LikeServiceTest {
                     () -> assertThat(result.getProductId()).isEqualTo(PRODUCT_ID),
                     () -> assertThat(result.isLiked()).isTrue(),
                     () -> verify(likeRepository, times(1)).save(any(Like.class)),
-                    () -> verify(productRepository, times(1)).save(any(Product.class)));
+                    () -> verify(productRepository).incrementLikeCount(PRODUCT_ID));
         }
 
         @Test
@@ -105,7 +104,6 @@ class LikeServiceTest {
             when(productRepository.findById(PRODUCT_ID)).thenReturn(Optional.of(product));
             when(likeRepository.findByMemberIdAndProductId(MEMBER_ID, PRODUCT_ID)).thenReturn(Optional.of(existingLike));
             when(likeRepository.save(any(Like.class))).thenAnswer(invocation -> invocation.getArgument(0));
-            when(productRepository.save(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
             // when
             Like result = likeService.like(MEMBER_ID, PRODUCT_ID);
@@ -114,7 +112,7 @@ class LikeServiceTest {
             assertAll(
                     () -> assertThat(result.isLiked()).isTrue(),
                     () -> verify(likeRepository, times(1)).save(any(Like.class)),
-                    () -> verify(productRepository, times(1)).save(any(Product.class)));
+                    () -> verify(productRepository).incrementLikeCount(PRODUCT_ID));
         }
 
         @Test
@@ -134,7 +132,7 @@ class LikeServiceTest {
             assertAll(
                     () -> assertThat(result.isLiked()).isTrue(),
                     () -> verify(likeRepository, never()).save(any(Like.class)),
-                    () -> verify(productRepository, never()).save(any(Product.class)));
+                    () -> verify(productRepository, never()).incrementLikeCount(any()));
         }
 
         @Test
@@ -164,13 +162,10 @@ class LikeServiceTest {
         @DisplayName("좋아요 상태(Y)에서 취소하면 N으로 전환된다.")
         void changesLikeYnToN_whenCurrentlyLiked() {
             // given
-            Product product = createProduct();
             Like existingLike = createLikeWithId(1L, MEMBER_ID, PRODUCT_ID, "Y");
 
             when(likeRepository.findByMemberIdAndProductId(MEMBER_ID, PRODUCT_ID)).thenReturn(Optional.of(existingLike));
             when(likeRepository.save(any(Like.class))).thenAnswer(invocation -> invocation.getArgument(0));
-            when(productRepository.findById(PRODUCT_ID)).thenReturn(Optional.of(product));
-            when(productRepository.save(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
             // when
             Like result = likeService.unlike(MEMBER_ID, PRODUCT_ID);
@@ -179,7 +174,7 @@ class LikeServiceTest {
             assertAll(
                     () -> assertThat(result.isLiked()).isFalse(),
                     () -> verify(likeRepository, times(1)).save(any(Like.class)),
-                    () -> verify(productRepository, times(1)).save(any(Product.class)));
+                    () -> verify(productRepository).decrementLikeCount(PRODUCT_ID));
         }
 
         @Test
@@ -197,8 +192,7 @@ class LikeServiceTest {
             assertAll(
                     () -> assertThat(result.isLiked()).isFalse(),
                     () -> verify(likeRepository, never()).save(any(Like.class)),
-                    () -> verify(productRepository, never()).findById(any()),
-                    () -> verify(productRepository, never()).save(any(Product.class)));
+                    () -> verify(productRepository, never()).decrementLikeCount(any()));
         }
 
         @Test

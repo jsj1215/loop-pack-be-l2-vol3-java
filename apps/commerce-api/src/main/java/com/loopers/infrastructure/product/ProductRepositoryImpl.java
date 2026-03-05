@@ -10,6 +10,8 @@ import com.querydsl.core.BooleanBuilder;
 import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.jpa.impl.JPAQuery;
 import com.querydsl.jpa.impl.JPAQueryFactory;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -31,6 +33,7 @@ public class ProductRepositoryImpl implements ProductRepository {
     private final ProductJpaRepository productJpaRepository;
     private final ProductOptionJpaRepository productOptionJpaRepository;
     private final JPAQueryFactory queryFactory;
+    private final EntityManager entityManager;
 
     @Override
     public Product save(Product productToSave) {
@@ -65,8 +68,29 @@ public class ProductRepositoryImpl implements ProductRepository {
     }
 
     @Override
+    public Optional<Product> findProductOnly(Long id) {
+        return productJpaRepository.findByIdAndDeletedAtIsNull(id);
+    }
+
+    @Override
     public Optional<ProductOption> findOptionById(Long optionId) {
         return productOptionJpaRepository.findByIdAndDeletedAtIsNull(optionId);
+    }
+
+    /**
+     * 비관적 락(PESSIMISTIC_WRITE)으로 ProductOption을 조회한다.
+     * SELECT ... FOR UPDATE로 행 락을 획득하고 DB 최신 값을 반환한다.
+     *
+     * 주의: 호출 전에 같은 트랜잭션에서 ProductOption이 1차 캐시에 로드되어 있으면
+     * stale read가 발생할 수 있다. 호출자는 findProductOnly() 등으로 옵션 로드를 회피해야 한다.
+     */
+    @Override
+    public Optional<ProductOption> findOptionByIdWithLock(Long optionId) {
+        ProductOption option = entityManager.find(ProductOption.class, optionId, LockModeType.PESSIMISTIC_WRITE);
+        if (option == null || option.getDeletedAt() != null) {
+            return Optional.empty();
+        }
+        return Optional.of(option);
     }
 
     @Override
@@ -214,6 +238,16 @@ public class ProductRepositoryImpl implements ProductRepository {
     @Override
     public void saveOption(ProductOption option) {
         productOptionJpaRepository.save(option);
+    }
+
+    @Override
+    public int incrementLikeCount(Long productId) {
+        return productJpaRepository.incrementLikeCount(productId);
+    }
+
+    @Override
+    public int decrementLikeCount(Long productId) {
+        return productJpaRepository.decrementLikeCount(productId);
     }
 
     private List<Product> assembleWithOptions(List<Product> products) {

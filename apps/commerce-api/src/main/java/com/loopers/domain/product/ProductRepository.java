@@ -12,7 +12,11 @@ public interface ProductRepository {
 
     Optional<Product> findById(Long id);
 
+    Optional<Product> findProductOnly(Long id);
+
     Optional<ProductOption> findOptionById(Long optionId);
+
+    Optional<ProductOption> findOptionByIdWithLock(Long optionId);
 
     boolean existsByBrandIdAndName(Long brandId, String name);
 
@@ -31,4 +35,8 @@ public interface ProductRepository {
     List<Long> findOptionIdsByBrandId(Long brandId);
 
     void saveOption(ProductOption option);
+
+    int incrementLikeCount(Long productId);
+
+    int decrementLikeCount(Long productId);
 }

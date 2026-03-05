@@ -8,13 +8,16 @@ import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.Getter;
 
 import java.time.ZonedDateTime;
 
 @Getter
 @Entity
-@Table(name = "likes")
+@Table(name = "likes", uniqueConstraints = {
+        @UniqueConstraint(name = "uk_likes_member_product", columnNames = {"member_id", "product_id"})
+})
 public class Like {
 
     @Id

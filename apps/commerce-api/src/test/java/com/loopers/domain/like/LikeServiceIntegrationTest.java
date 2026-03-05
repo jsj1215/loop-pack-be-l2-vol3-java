@@ -10,6 +10,7 @@ import com.loopers.domain.product.ProductService;
 import com.loopers.support.error.CoreException;
 import com.loopers.support.error.ErrorType;
 import com.loopers.utils.DatabaseCleanUp;
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -43,6 +44,9 @@ class LikeServiceIntegrationTest {
 
     @Autowired
     private BrandService brandService;
+
+    @Autowired
+    private EntityManager entityManager;
 
     @Autowired
     private DatabaseCleanUp databaseCleanUp;
@@ -82,6 +86,9 @@ class LikeServiceIntegrationTest {
                     () -> assertThat(like.isLiked()).isTrue()
             );
 
+            entityManager.flush();
+            entityManager.clear();
+
             Product updatedProduct = productService.findById(product.getId());
             assertThat(updatedProduct.getLikeCount()).isEqualTo(1);
         }
@@ -99,6 +106,9 @@ class LikeServiceIntegrationTest {
 
             // then
             assertThat(like.isLiked()).isTrue();
+
+            entityManager.flush();
+            entityManager.clear();
 
             Product updatedProduct = productService.findById(product.getId());
             assertThat(updatedProduct.getLikeCount()).isEqualTo(1);
@@ -138,6 +148,9 @@ class LikeServiceIntegrationTest {
             // then
             assertThat(like.isLiked()).isFalse();
 
+            entityManager.flush();
+            entityManager.clear();
+
             Product updatedProduct = productService.findById(product.getId());
             assertThat(updatedProduct.getLikeCount()).isEqualTo(0);
         }
@@ -156,6 +169,9 @@ class LikeServiceIntegrationTest {
 
             // then
             assertThat(like.isLiked()).isFalse();
+
+            entityManager.flush();
+            entityManager.clear();
 
             Product updatedProduct = productService.findById(product.getId());
             assertThat(updatedProduct.getLikeCount()).isEqualTo(0);
