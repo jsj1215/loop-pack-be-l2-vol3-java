@@ -156,9 +156,11 @@ sequenceDiagram
     alt 좋아요 데이터가 없는 경우
         LikeRepository-->>LikeService: 조회 결과 없음
         LikeService->>LikeRepository: 새 좋아요 저장 (LIKE_YN='Y')
+        LikeService->>ProductRepository: incrementLikeCount(productId) [Atomic UPDATE]
     else 좋아요 데이터 존재 & LIKE_YN='N'
         LikeRepository-->>LikeService: 좋아요 데이터 (LIKE_YN='N')
         LikeService->>LikeRepository: 좋아요 상태 변경 (LIKE_YN='Y')
+        LikeService->>ProductRepository: incrementLikeCount(productId) [Atomic UPDATE]
     else 이미 좋아요 상태 (LIKE_YN='Y')
         LikeRepository-->>LikeService: 좋아요 데이터 (LIKE_YN='Y')
         Note over LikeService: 무시 (멱등 처리)
@@ -174,6 +176,7 @@ sequenceDiagram
 - LikeService → ProductRepository 의존 발생: 상품 존재 검증을 위해 수용하는 트레이드오프
 - LIKE_YN 컬럼으로 soft delete 방식 관리 (Insert / Update 분기)
 - 이미 좋아요 상태면 멱등 처리 (에러 없이 성공)
+- likeCount 증감은 `@Modifying @Query`로 DB 레벨 Atomic UPDATE 적용 — Lost Update 방지
 
 ---
 
@@ -187,6 +190,7 @@ sequenceDiagram
     participant Facade as ProductFacade
     participant LikeService as LikeService
     participant LikeRepository as LikeRepository
+    participant ProductRepository as ProductRepository
 
     Client->>Controller: PUT /api/v1/products/{productId}/likes<br/>Headers: X-Loopers-LoginId, X-Loopers-LoginPw
 
@@ -206,6 +210,7 @@ sequenceDiagram
     else LIKE_YN='Y'인 경우
         LikeRepository-->>LikeService: 좋아요 데이터 (LIKE_YN='Y')
         LikeService->>LikeRepository: 좋아요 상태 변경 (LIKE_YN='N')
+        LikeService->>ProductRepository: decrementLikeCount(productId) [Atomic UPDATE]
     else 이미 취소 상태 (LIKE_YN='N')
         LikeRepository-->>LikeService: 좋아요 데이터 (LIKE_YN='N')
         Note over LikeService: 무시 (멱등 처리)
@@ -220,6 +225,7 @@ sequenceDiagram
 - (4)와 비대칭 정책: 데이터 없음 → 등록은 Insert, 취소는 400 Bad Request
 - 이미 취소 상태(LIKE_YN='N')는 멱등 처리
 - 요구사항의 HTTP Method "UPDATE"는 존재하지 않으므로 PUT으로 표현. 구현 시 DELETE도 고려 가능
+- likeCount 감소는 `@Modifying @Query`로 DB 레벨 Atomic UPDATE 적용 — `AND like_count > 0` 조건으로 음수 방지
 
 ---
 
@@ -277,7 +283,7 @@ sequenceDiagram
     participant ProductRepository as ProductRepository
     participant CartRepository as CartRepository
 
-    Client->>Controller: POST /api/v1/carts<br/>Headers: X-Loopers-LoginId, X-Loopers-LoginPw<br/>Body: productId, optionId, quantity
+    Client->>Controller: POST /api/v1/carts<br/>Headers: X-Loopers-LoginId, X-Loopers-LoginPw<br/>Body: productOptionId, quantity
 
     Note over Controller: MemberAuthInterceptor 인증 처리 → @LoginMember Member 주입
     alt 인증 실패 (헤더 누락 또는 인증 오류)
@@ -292,46 +298,26 @@ sequenceDiagram
         Controller-->>Client: 400 Bad Request "수량은 1개 이상이어야 합니다"
     end
 
-    CartService->>ProductRepository: 상품+옵션 ID로 조회
+    CartService->>ProductRepository: 상품 옵션 ID로 조회
 
-    alt 상품 또는 옵션이 존재하지 않는 경우
-        ProductRepository-->>CartService: 조회 결과 없음
-        CartService-->>Controller: 상품/옵션 없음 예외
-        Controller-->>Client: 404 Not Found
+    alt 상품 옵션이 존재하지 않거나 재고 부족
+        CartService-->>Controller: BAD_REQUEST 예외
+        Controller-->>Client: 400 Bad Request "상품 옵션이 존재하지 않거나 재고가 부족합니다"
     end
 
-    ProductRepository-->>CartService: 상품 옵션 정보 (재고 포함)
-
-    alt 요청 수량 > 재고
-        CartService-->>Controller: 재고 부족 예외
-        Controller-->>Client: 400 Bad Request "재고가 부족합니다"
-    end
-
-    CartService->>CartRepository: 회원+옵션으로 장바구니 조회
-
-    alt 동일 옵션이 장바구니에 이미 존재
-        CartRepository-->>CartService: 기존 장바구니 항목
-        Note over CartService: 기존 수량 + 요청 수량 > 재고 체크
-        alt 합산 수량 > 재고
-            CartService-->>Controller: 재고 부족 예외
-            Controller-->>Client: 400 Bad Request "재고가 부족합니다"
-        end
-        CartService->>CartRepository: 수량 증가 업데이트
-    else 장바구니에 없는 경우
-        CartRepository-->>CartService: 조회 결과 없음
-        CartService->>CartRepository: 새 장바구니 항목 저장
-    end
+    CartService->>CartRepository: UPSERT (INSERT ... ON DUPLICATE KEY UPDATE)
+    Note over CartRepository: 신규: INSERT / 기존: quantity += 요청 수량<br/>(member_id, product_option_id) UNIQUE 제약 활용
 
     CartService-->>Facade: 처리 완료
     Facade-->>Controller: 처리 완료
-    Controller-->>Client: 200 OK
+    Controller-->>Client: 201 Created
 ```
 
 **설계 포인트**
 - 수량 검증이 가장 먼저 수행: 0 이하 수량은 재고 조회 없이 즉시 거부
-- 재고 검증이 두 번 발생: 신규 담기 시 `요청 수량 > 재고`, 기존 상품 병합 시 `합산 수량 > 재고`
-- 장바구니 단위는 **상품+옵션 조합**: 같은 상품이라도 옵션이 다르면 별도 CartItem
-- 동일 옵션이 이미 있으면 수량만 증가 (옵션 없는 구조이므로 수량 병합)
+- 재고 검증은 이번에 담으려는 수량만 체크 (장바구니 누적 수량과 무관). 최종 재고 검증은 주문 시점에 비관적 락으로 보호
+- **원자적 UPSERT**: `INSERT ... ON DUPLICATE KEY UPDATE`로 신규/기존 장바구니 항목을 단일 쿼리로 처리. Read-then-Write 패턴 제거
+- **Hard Delete**: 장바구니는 삭제 이력 보존이 불필요하므로 soft delete 대신 물리 삭제 사용. `(member_id, product_option_id)` 유니크 제약으로 UPSERT 가능
 - CartService → ProductRepository 의존: 재고 확인을 위해 필요
 
 ---
@@ -348,7 +334,7 @@ sequenceDiagram
     participant CouponService as CouponService
     participant PointService as PointService
     participant CartService as CartService
-    participant ProductRepository as ProductRepository
+    participant ProductService as ProductService
     participant OrderRepository as OrderRepository
     participant CouponRepository as CouponRepository
     participant MemberCouponRepository as MemberCouponRepository
@@ -365,37 +351,40 @@ sequenceDiagram
 
     Controller->>Facade: 인증된 Member + 주문 생성 요청
     Note over Facade: @Transactional 시작 — 전체 트랜잭션 관리
-    Facade->>OrderService: prepareOrderItems (재고 검증/차감 + 스냅샷 생성)
 
-    loop 주문 항목별 재고 검증 및 차감
-        OrderService->>ProductRepository: 상품+옵션 ID로 조회
-
-        alt 상품 또는 옵션이 존재하지 않는 경우
-            ProductRepository-->>OrderService: 조회 결과 없음
-            OrderService-->>Controller: 상품/옵션 없음 예외
-            Controller-->>Client: 404 Not Found
-        end
-
-        ProductRepository-->>OrderService: 상품 옵션 정보
-
-        alt 요청 수량 > 재고
-            OrderService-->>Controller: 재고 부족 예외
-            Controller-->>Client: 400 Bad Request "재고가 부족합니다"
-        end
-
-        OrderService->>ProductRepository: 재고 차감
-    end
-
-    Note over OrderService: 주문 데이터 + 스냅샷 생성<br/>상품명, 옵션명, 브랜드명, 브랜드ID,<br/>판매가, 공급가, 배송비, 수량
-
-    OrderService-->>Facade: 주문 항목(OrderItem) 목록 + totalAmount
-
-    opt memberCouponId가 존재하는 경우 (쿠폰 사용)
-        Note over Facade: 할인 적용 대상 금액 산정 (couponScope별)<br/>CART: totalAmount<br/>PRODUCT: targetId 일치 OrderItem subtotal 합<br/>BRAND: targetId(brandId) 일치 OrderItem subtotal 합
+    opt memberCouponId가 존재하는 경우 (쿠폰 검증 — 재고 차감 전 수행으로 락 보유 시간 단축)
+        Note over Facade: 상품 정보 조회 후 할인 적용 대상 금액 산정 (couponScope별)<br/>CART: 전체 주문 금액<br/>PRODUCT: targetId 일치 상품 소계 합<br/>BRAND: targetId(brandId) 일치 상품 소계 합
         Facade->>CouponService: calculateCouponDiscount(memberId, memberCouponId, applicableAmount)
         Note over CouponService: 소유 검증 + 사용 가능 여부 + 유효기간 + 최소 주문 금액 검증
         CouponService-->>Facade: 할인 금액 (discountAmount)
     end
+
+    Facade->>OrderService: prepareOrderItems (재고 검증/차감 + 스냅샷 생성)
+
+    loop 주문 항목별 (optionId 오름차순 정렬)
+        OrderService->>ProductService: findById(productId) — 상품 조회
+        ProductService-->>OrderService: Product
+
+        OrderService->>ProductService: deductStock(optionId, quantity) — 비관적 락 + 재고 차감
+
+        Note over ProductService: EntityManager.find() + refresh(PESSIMISTIC_WRITE)<br/>→ 1차 캐시 오염 방지, DB 최신 값 보장
+
+        alt 상품 옵션이 존재하지 않는 경우
+            ProductService-->>Controller: NOT_FOUND 예외
+            Controller-->>Client: 404 Not Found
+        end
+
+        alt 요청 수량 > 재고
+            ProductService-->>Controller: BAD_REQUEST 예외
+            Controller-->>Client: 400 Bad Request "재고가 부족합니다"
+        end
+
+        ProductService-->>OrderService: ProductOption (차감된 최신 옵션)
+    end
+
+    Note over OrderService: 주문 데이터 + 스냅샷 생성<br/>상품명, 옵션명, 브랜드명, 브랜드ID,<br/>판매가, 공급가, 배송비, 수량
+
+    OrderService-->>Facade: 주문 항목(OrderItem) 목록
 
     Facade->>OrderService: createOrder(memberId, orderItems, discountAmount, memberCouponId, usedPoints)
     OrderService->>OrderRepository: 주문 + 주문항목 저장
@@ -432,7 +421,8 @@ sequenceDiagram
 ```
 
 **설계 포인트**
-- 결제 없이 주문 단계에서 완료: prepareOrderItems(재고 검증/차감/스냅샷) → calculateCouponDiscount → createOrder → useCoupon → usePoint → deleteCart
+- 결제 없이 주문 단계에서 완료: calculateCouponDiscount(쿠폰 검증) → prepareOrderItems(재고 검증/차감/스냅샷) → createOrder → useCoupon → usePoint → deleteCart
+- **쿠폰 검증을 재고 차감 전으로 배치**: 재고 비관적 락(SELECT FOR UPDATE) 보유 시간을 단축. 쿠폰 검증 실패 시 재고 락을 잡지 않아 불필요한 대기 방지
 - 실결제금액 = totalAmount - discountAmount - usedPoints
 - 단건/장바구니 주문 통합 엔드포인트: body 내용으로 분기 (cartItemIds[] 또는 productId+optionId+quantity)
 - Facade의 @Transactional로 전체 트랜잭션 관리. 실패 시 재고 + 쿠폰 + 포인트 자동 롤백
@@ -441,7 +431,7 @@ sequenceDiagram
 - **적용 대상 금액(applicableAmount) 산정은 Facade에 유지**: 주문 아이템(OrderItem) 정보가 필요하므로 쿠폰 도메인이 주문 도메인에 의존하지 않도록 함
 - 장바구니 삭제, 포인트 사용, 쿠폰 사용 처리는 Facade에서 각 Service를 호출하여 조율
 - 주문당 쿠폰 1장만 사용 가능 (포인트와 중복 사용은 가능)
-- OrderService 의존 범위: ProductRepository(재고 검증/차감), OrderRepository(주문 저장)
+- OrderService 의존 범위: ProductService(재고 검증/차감 — `deductStock()`이 `ProductOption` 반환), OrderRepository(주문 저장)
 
 ### 할인 금액 계산 로직
 ```
@@ -557,43 +547,7 @@ sequenceDiagram
 
 ---
 
-## (11) 쿠폰 목록 조회
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant Client
-    participant Controller as CouponV1Controller
-    participant Facade as CouponFacade
-    participant Service as CouponService
-    participant Repository as CouponRepository
-
-    Client->>Controller: GET /api/v1/coupons
-
-    Controller->>Facade: 쿠폰 목록 조회 요청
-    Facade->>Service: 유효 쿠폰 목록 조회
-    Service->>Repository: 유효기간 내 + 수량 남은 쿠폰 조회
-    Repository-->>Service: 쿠폰 목록 (빈 리스트 가능)
-
-    alt 조회 결과가 빈 리스트인 경우
-        Service-->>Facade: 빈 리스트
-        Facade-->>Controller: "조회된 내역이 없습니다."
-        Controller-->>Client: 200 OK ("조회된 내역이 없습니다.")
-    end
-
-    Service-->>Facade: 쿠폰 목록
-    Facade-->>Controller: 쿠폰 응답 목록
-    Controller-->>Client: 200 OK (쿠폰 목록)
-```
-
-**설계 포인트**
-- 인증 불필요: 누구나 조회 가능
-- 유효기간 내(`validFrom ≤ now ≤ validTo`) + 잔여 수량(`issuedQuantity < totalQuantity`)이 있는 쿠폰만 반환
-- 결과 0건이어도 200 반환, 메시지로 "조회된 내역이 없습니다." 응답
-
----
-
-## (12) 쿠폰 발급 요청
+## (11) 쿠폰 발급 요청
 
 ```mermaid
 sequenceDiagram
@@ -633,19 +587,17 @@ sequenceDiagram
 
     MemberCouponRepo-->>Service: 조회 결과 없음
 
-    alt 발급 불가 (수량 초과 또는 유효기간 외)
-        Note over Service: Coupon.isIssuable() 확인
+    alt 유효기간 외
+        Note over Service: Coupon.isValid() 확인
         Service-->>Controller: 발급 불가 예외
         Controller-->>Client: 400 Bad Request "쿠폰 발급이 불가합니다"
     end
 
-    Note over Service: Coupon.issue() - issuedQuantity 증가
-    Service->>CouponRepo: 쿠폰 발급 수량 업데이트
-
     Note over Service: MemberCoupon.create(memberId, couponId) - status=AVAILABLE
     Service->>MemberCouponRepo: 회원 쿠폰 저장
 
-    Service-->>Facade: 발급된 회원 쿠폰 정보
+    Service-->>Facade: MemberCouponDetail (MemberCoupon + Coupon)
+    Note over Facade: MemberCouponDetail.coupon()으로<br/>CouponInfo 생성 (추가 조회 없음)
     Facade-->>Controller: 쿠폰 발급 응답
     Controller-->>Client: 200 OK (CouponResponse)
 ```
@@ -653,9 +605,9 @@ sequenceDiagram
 **설계 포인트**
 - 인증 필요: 로그인한 회원만 발급 가능
 - 중복 발급 방지: `member_id + coupon_id` UNIQUE 제약 + 애플리케이션 레벨 검증 (409 Conflict)
-- 발급 가능 여부: `Coupon.isIssuable()`에서 수량(`issuedQuantity < totalQuantity`) + 유효기간(`validFrom ≤ now ≤ validTo`) 확인
-- `Coupon.issue()`: issuedQuantity 증가. 동시성은 추후 optimistic locking 또는 DB 원자적 업데이트로 개선
+- 발급 가능 여부: `Coupon.isValid()`에서 유효기간(`validFrom ≤ now ≤ validTo`) 확인
 - MemberCoupon 생성 시 status는 AVAILABLE
+- Service가 `MemberCouponDetail(MemberCoupon, Coupon)`을 반환하여 Facade에서 추가 DB 조회 불필요
 
 ---
 
@@ -679,18 +631,17 @@ sequenceDiagram
     end
 
     Controller->>Facade: 인증된 Member + 내 쿠폰 목록 조회 요청
-    Facade->>Service: 내 쿠폰 전체 조회 (memberId)
+    Facade->>Service: 내 쿠폰 상세 조회 (memberId)
     Service->>MemberCouponRepo: 회원 ID로 전체 조회 (AVAILABLE + USED)
     MemberCouponRepo-->>Service: 회원 쿠폰 목록 (빈 리스트 가능)
-    Service-->>Facade: 회원 쿠폰 목록
 
-    loop 각 MemberCoupon에 대해
-        Facade->>Service: 쿠폰 정보 조회 (couponId)
-        Service->>CouponRepo: 쿠폰 ID로 조회
-        CouponRepo-->>Service: 쿠폰 정보
-        Service-->>Facade: 쿠폰 정보
-        Note over Facade: EXPIRED 판별:<br/>status == AVAILABLE && coupon.validTo < now → EXPIRED
-    end
+    Note over Service: couponId 목록 수집
+    Service->>CouponRepo: IN절로 쿠폰 배치 조회 (couponIds)
+    CouponRepo-->>Service: 쿠폰 목록
+    Note over Service: MemberCoupon + Coupon → MemberCouponDetail 조합
+
+    Service-->>Facade: List<MemberCouponDetail>
+    Note over Facade: MyCouponInfo 변환 + EXPIRED 판별:<br/>status == AVAILABLE && coupon.validTo < now → EXPIRED
 
     Facade-->>Controller: 내 쿠폰 응답 목록 (AVAILABLE / USED / EXPIRED 상태 포함)
     Controller-->>Client: 200 OK (내 쿠폰 목록)
@@ -703,6 +654,8 @@ sequenceDiagram
 - EXPIRED는 DB 저장값이 아닌 조회 시 계산: `status == AVAILABLE && coupon.validTo < now`
 - 결과 0건이어도 200 반환
 - 쿠폰 정보(쿠폰명, 할인 유형, 할인 값, 유효기간 등)를 함께 반환하여 주문 시 선택에 활용
+- MemberCoupon + Coupon 조합 로직은 Service에서 처리 (같은 도메인 내 Repository 2개 조합이므로 Service 책임)
+- IN절 배치 조회로 N+1 방지
 
 ---
 ---
@@ -1265,7 +1218,7 @@ sequenceDiagram
     participant Service as CouponService
     participant Repository as CouponRepository
 
-    Client->>Controller: POST /api-admin/v1/coupons<br/>Header: X-Loopers-Ldap<br/>Body: name, couponScope, targetId, discountType, discountValue, minOrderAmount, maxDiscountAmount, totalQuantity, validFrom, validTo
+    Client->>Controller: POST /api-admin/v1/coupons<br/>Header: X-Loopers-Ldap<br/>Body: name, couponScope, targetId, discountType, discountValue, minOrderAmount, maxDiscountAmount, validFrom, validTo
 
     Note over Controller: AdminAuthInterceptor 인증 처리 → @LoginAdmin Admin 주입
     alt 인증 실패 (헤더 누락 또는 인증 오류)
@@ -1290,7 +1243,6 @@ sequenceDiagram
 **설계 포인트**
 - 입력값 검증: couponScope에 따른 targetId 필수/null 검증, discountType에 따른 maxDiscountAmount 필수 검증
 - Coupon.create() 정적 팩토리 메서드로 도메인 객체 생성
-- issuedQuantity는 0으로 초기화
 - 201 Created 반환
 
 ---
@@ -1331,7 +1283,6 @@ sequenceDiagram
 
 **설계 포인트**
 - 전체 쿠폰 페이징 조회 (유효기간 무관)
-- 발급 현황(totalQuantity, issuedQuantity) 포함
 - 결과 0건이어도 200 반환, 메시지로 "조회된 내역이 없습니다." 응답
 
 ---
@@ -1371,7 +1322,7 @@ sequenceDiagram
 ```
 
 **설계 포인트**
-- targetId, totalQuantity, issuedQuantity 등 어드민 전용 상세 정보 포함
+- targetId 등 어드민 전용 상세 정보 포함
 - 존재하지 않으면 404 Not Found
 
 ---
@@ -1387,7 +1338,7 @@ sequenceDiagram
     participant Service as CouponService
     participant Repository as CouponRepository
 
-    Client->>Controller: PUT /api-admin/v1/coupons/{couponId}<br/>Header: X-Loopers-Ldap<br/>Body: name, couponScope, targetId, discountType, discountValue, minOrderAmount, maxDiscountAmount, totalQuantity, validFrom, validTo
+    Client->>Controller: PUT /api-admin/v1/coupons/{couponId}<br/>Header: X-Loopers-Ldap<br/>Body: name, couponScope, targetId, discountType, discountValue, minOrderAmount, maxDiscountAmount, validFrom, validTo
 
     Note over Controller: AdminAuthInterceptor 인증 처리 → @LoginAdmin Admin 주입
     alt 인증 실패 (헤더 누락 또는 인증 오류)
@@ -1430,7 +1381,7 @@ sequenceDiagram
     participant Service as CouponService
     participant Repository as CouponRepository
 
-    Client->>Controller: POST /api-admin/v1/coupons/{couponId}<br/>Header: X-Loopers-Ldap
+    Client->>Controller: DELETE /api-admin/v1/coupons/{couponId}<br/>Header: X-Loopers-Ldap
 
     Note over Controller: AdminAuthInterceptor 인증 처리 → @LoginAdmin Admin 주입
     alt 인증 실패 (헤더 누락 또는 인증 오류)

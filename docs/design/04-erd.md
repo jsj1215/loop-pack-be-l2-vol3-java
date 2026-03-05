@@ -76,8 +76,8 @@ erDiagram
 
     PRODUCT_LIKE {
         bigint id PK
-        bigint member_id "회원 ID (논리적 참조: MEMBER)"
-        bigint product_id "상품 ID (논리적 참조: PRODUCT)"
+        bigint member_id "회원 ID (논리적 참조: MEMBER) [UK: member_id + product_id]"
+        bigint product_id "상품 ID (논리적 참조: PRODUCT) [UK: member_id + product_id]"
         varchar like_yn "좋아요 여부 (Y/N)"
         datetime created_at "생성일시"
         datetime updated_at "수정일시"
@@ -89,11 +89,7 @@ erDiagram
         bigint product_option_id "상품옵션 ID (논리적 참조: PRODUCT_OPTION)"
         int quantity "수량"
         datetime created_at "생성일시"
-        varchar created_by "생성자"
         datetime updated_at "수정일시"
-        varchar updated_by "수정자"
-        datetime deleted_at "삭제일시 (soft delete)"
-        varchar deleted_by "삭제자"
     }
 
     ORDERS {
@@ -168,8 +164,6 @@ erDiagram
         int discount_value "할인 값 (금액 또는 비율%)"
         int min_order_amount "최소 주문 금액 조건"
         int max_discount_amount "최대 할인 금액 (FIXED_RATE 시 상한)"
-        int total_quantity "총 발행 수량"
-        int issued_quantity "발급된 수량"
         datetime valid_from "유효기간 시작"
         datetime valid_to "유효기간 종료"
         datetime created_at "생성일시"
@@ -182,11 +176,12 @@ erDiagram
 
     MEMBER_COUPON {
         bigint id PK
-        bigint member_id "회원 ID (논리적 참조: MEMBER)"
-        bigint coupon_id "쿠폰 ID (논리적 참조: COUPON)"
+        bigint member_id "회원 ID (논리적 참조: MEMBER) [UK: member_id + coupon_id]"
+        bigint coupon_id "쿠폰 ID (논리적 참조: COUPON) [UK: member_id + coupon_id]"
         varchar status "쿠폰 상태 (AVAILABLE/USED)"
         bigint order_id "사용된 주문 ID (nullable, USED 시)"
         datetime used_at "사용 일시 (nullable)"
+        bigint version "낙관적 락 버전 (@Version)"
         datetime created_at "생성일시"
         varchar created_by "생성자"
         datetime updated_at "수정일시"
@@ -234,13 +229,14 @@ erDiagram
 
 ### PRODUCT_LIKE
 - **BaseEntity 미상속**: LIKE_YN으로 상태 관리하므로 soft delete 불필요. @Id/@GeneratedValue/@PrePersist/@PreUpdate 직접 관리
-- `member_id + product_id` 복합 유니크 제약 권장
+- `member_id + product_id` 복합 유니크 제약 적용 — 동시 좋아요 요청 시 중복 INSERT 방지
 - `like_yn`: 'Y'/'N'으로 좋아요 상태 관리. 물리 삭제하지 않고 상태 전환
 
 ### CART_ITEM
-- `member_id + product_option_id` 복합 유니크 제약 권장
-- 동일 회원 + 동일 옵션이면 수량만 증가
-- 주문 완료 시 해당 항목 삭제
+- **Hard Delete**: 장바구니는 삭제 이력 보존이 불필요하므로 물리 삭제 사용 (BaseEntity의 deleted_at 미사용)
+- `member_id + product_option_id` 복합 유니크 제약 적용 — `INSERT ... ON DUPLICATE KEY UPDATE`로 원자적 UPSERT 지원
+- 동일 회원 + 동일 옵션이면 수량만 원자적으로 증가
+- 주문 완료 시 해당 항목 물리 삭제
 
 ### ORDERS
 - 테이블명 `ORDERS` 사용 (ORDER는 SQL 예약어)
@@ -269,15 +265,13 @@ erDiagram
 - `brand_id`: 브랜드 ID 스냅샷. 브랜드 쿠폰 적용 대상 판별에 사용
 
 ### COUPON
-- 쿠폰 템플릿 테이블. 어드민이 생성하며, 쿠폰의 규칙과 수량을 관리
+- 쿠폰 템플릿 테이블. 어드민이 생성하며, 쿠폰의 규칙을 관리
 - `coupon_scope`: 적용 범위 (PRODUCT: 특정 상품, BRAND: 특정 브랜드, CART: 장바구니 전체)
 - `target_id`: PRODUCT일 때 상품 ID, BRAND일 때 브랜드 ID, CART일 때 null
 - `discount_type`: 할인 유형 (FIXED_AMOUNT: 정액 할인, FIXED_RATE: 정률 할인)
 - `discount_value`: 정액일 때 할인 금액, 정률일 때 할인 비율(%)
 - `min_order_amount`: 최소 주문 금액 조건. 적용 대상 금액이 이 값 미만이면 쿠폰 사용 불가
 - `max_discount_amount`: 정률 쿠폰의 최대 할인 금액 상한
-- `total_quantity`: 총 발행 가능 수량
-- `issued_quantity`: 현재까지 발급된 수량. 다운로드 시 증가
 - `valid_from`, `valid_to`: 쿠폰 유효기간
 
 ### MEMBER_COUPON
@@ -298,12 +292,13 @@ erDiagram
 | **좋아요 수** | Product.like_count 비정규화 | 좋아요수 정렬 시 COUNT 집계 쿼리 회피 |
 | **주문 스냅샷** | ORDER_ITEM에 필드 복사 | 가격 변경/상품 삭제에 독립적인 주문 이력 |
 | **장바구니 단위** | ProductOption 기준 | 같은 상품이라도 옵션이 다르면 별도 항목 |
+| **장바구니 삭제 방식** | Hard Delete (물리 삭제) | 삭제 이력 불필요, UPSERT를 위한 유니크 제약 활용 |
 | **ORDER 테이블명** | ORDERS | SQL 예약어 충돌 회피 |
 | **물리 FK 미사용** | 논리적 참조만 유지 | 쓰기 성능 확보, Soft Delete 호환, DB 분리 대비 |
 | **ORDER_ITEM 참조** | order_id + product_id (참고용) | 스냅샷 독립성 유지 + 통계/분석/상품 링크 활용 |
 | **포인트 관리** | POINT + POINT_HISTORY 분리 | 잔액과 이력을 독립 관리, 감사 추적 가능 |
 | **포인트 ↔ Member 분리** | 별도 도메인으로 관리 | 관심사 분리, Member 도메인 비대화 방지 |
-| **쿠폰 구조** | COUPON(템플릿) + MEMBER_COUPON(발급) 분리 | 수량/규칙은 템플릿에서, 개별 상태는 발급 테이블에서 관리 |
+| **쿠폰 구조** | COUPON(템플릿) + MEMBER_COUPON(발급) 분리 | 규칙은 템플릿에서, 개별 상태는 발급 테이블에서 관리 |
 | **쿠폰 적용 범위** | PRODUCT/BRAND/CART 3단계 | 상품/브랜드/전체 각각 독립적 할인 정책 |
 | **OrderItem에 brandId 추가** | 스냅샷 필드로 brandId 포함 | 브랜드 쿠폰 적용 대상 판별에 사용 |
 

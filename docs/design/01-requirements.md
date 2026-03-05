@@ -53,19 +53,20 @@
 **(7) 장바구니 담기**
 > `클라이언트` → `Controller` → `Facade` → `Service` → `Repository`
 - Controller: MemberAuthInterceptor 인증 처리 → @LoginMember Member 주입. 인증 실패 시 401 Unauthorized
-- Service: 수량이 0 이하이면 400 Bad Request. 해당 상품+옵션의 재고가 있는지 확인. 재고가 부족하면 400 Bad Request, 재고가 있다면 Cart 테이블에 데이터 추가
-- 기존에 동일한 상품+옵션이 장바구니에 있다면 수량만 증가시킨다. (합산 수량 > 재고 시 400 Bad Request)
+- Service: 수량이 0 이하이면 400 Bad Request. 이번에 담으려는 수량이 현재 재고보다 큰지 확인. 재고가 부족하면 400 Bad Request
+- 원자적 UPSERT (`INSERT ... ON DUPLICATE KEY UPDATE`)로 신규 아이템은 INSERT, 기존 아이템은 수량 증가
+- 장바구니는 Hard Delete (삭제 이력 불필요). `(member_id, product_option_id)` 유니크 제약으로 UPSERT 지원
 
 **(8) 주문 요청**
 > `클라이언트` → `Controller` → `Facade(OrderFacade)` → `OrderService` + `CouponService` + `PointService` + `CartService`
 - Controller: MemberAuthInterceptor 인증 처리 → @LoginMember Member 주입. 인증 실패 시 401 Unauthorized
 - Facade (@Transactional으로 전체 트랜잭션 관리):
-  1. OrderService.prepareOrderItems(): 주문 항목별 재고 검증 및 차감 + 스냅샷 생성. 재고 부족 시 400 Bad Request
-  2. CouponService.calculateCouponDiscount(): 쿠폰 제출 시 소유 검증/유효기간/최소 주문 금액/할인 금액 계산
+  1. CouponService.calculateCouponDiscount(): 쿠폰 제출 시 소유 검증/유효기간/최소 주문 금액/할인 금액 계산 (재고 차감 전 수행 — 락 보유 시간 단축)
+  2. OrderService.prepareOrderItems(): 주문 항목별 재고 검증 및 차감 + 스냅샷 생성. 재고 부족 시 400 Bad Request
   3. OrderService.createOrder(): 주문 데이터 저장
   4. CouponService.useCoupon(): 쿠폰 사용 처리 (AVAILABLE → USED)
   5. PointService.usePoint(): 포인트 차감 (잔액 부족 시 400 Bad Request)
-  6. CartService.deleteByProductOptionIds(): 장바구니에서 주문한 항목 삭제
+  6. CartService.deleteByMemberIdAndProductOptionIds(): 장바구니에서 주문한 항목 삭제
   - 실패 시 Facade의 @Transactional 롤백으로 전체 자동 복원 (결제 기능 없음)
   - 실결제금액 = totalAmount - discountAmount - usedPoints
 
@@ -205,20 +206,14 @@ Facade는 인증에 관여하지 않으며, 인증된 Member를 파라미터로 
 
 ---
 ### 쿠폰
-(1) 쿠폰 목록 조회
-- 설명 : 유효기간 내 + 수량 남은 쿠폰 목록을 조회한다.
-- URI : /api/v1/coupons
-- METHOD : GET
-- 로그인 필수 아님.
-
-(2) 쿠폰 발급 요청
+(1) 쿠폰 발급 요청
 - 설명 : 쿠폰을 발급받는다.
 - URI : /api/v1/coupons/{couponId}/issue
 - METHOD : POST
 - 로그인 필수
-- 중복 발급 시 409 Conflict, 수량 소진 시 400 Bad Request
+- 중복 발급 시 409 Conflict, 유효기간 외 발급 시 400 Bad Request
 
-(3) 내 쿠폰 목록 조회
+(2) 내 쿠폰 목록 조회
 - 설명 : 내 쿠폰 목록을 조회한다. AVAILABLE / USED / EXPIRED 상태를 함께 반환한다.
 - URI : /api/v1/users/me/coupons
 - METHOD : GET
@@ -327,7 +322,7 @@ Controller는 고객 서비스와 분리된 별도 어드민 컨트롤러를 사
 - URI : /api-admin/v1/coupons
 - METHOD : POST
 - 로그인 필수
-- Body : name, couponScope, targetId, discountType, discountValue, minOrderAmount, maxDiscountAmount, totalQuantity, validFrom, validTo
+- Body : name, couponScope, targetId, discountType, discountValue, minOrderAmount, maxDiscountAmount, validFrom, validTo
 
 (13) 쿠폰 목록 조회
 - 설명 : 전체 쿠폰을 페이징 조회한다.
@@ -346,12 +341,12 @@ Controller는 고객 서비스와 분리된 별도 어드민 컨트롤러를 사
 - URI : /api-admin/v1/coupons/{couponId}
 - METHOD : PUT
 - 로그인 필수
-- Body : name, couponScope, targetId, discountType, discountValue, minOrderAmount, maxDiscountAmount, totalQuantity, validFrom, validTo
+- Body : name, couponScope, targetId, discountType, discountValue, minOrderAmount, maxDiscountAmount, validFrom, validTo
 
 (16) 쿠폰 삭제
 - 설명 : 쿠폰 템플릿을 삭제한다. (soft delete)
 - URI : /api-admin/v1/coupons/{couponId}
-- METHOD : POST
+- METHOD : DELETE
 - 로그인 필수
 
 (17) 특정 쿠폰 발급 내역 조회
