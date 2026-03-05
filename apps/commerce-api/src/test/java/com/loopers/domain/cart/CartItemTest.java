@@ -36,35 +36,4 @@ class CartItemTest {
         }
     }
 
-    @Nested
-    @DisplayName("장바구니 아이템 수량을 추가할 때,")
-    class AddQuantity {
-
-        @Test
-        @DisplayName("기존 수량에 추가 수량이 더해진다.")
-        void incrementsQuantity() {
-            // given
-            CartItem cartItem = CartItem.create(1L, 10L, 3);
-
-            // when
-            cartItem.addQuantity(2);
-
-            // then
-            assertThat(cartItem.getQuantity()).isEqualTo(5);
-        }
-
-        @Test
-        @DisplayName("여러 번 추가하면 수량이 누적된다.")
-        void accumulatesQuantity_whenAddedMultipleTimes() {
-            // given
-            CartItem cartItem = CartItem.create(1L, 10L, 1);
-
-            // when
-            cartItem.addQuantity(2);
-            cartItem.addQuantity(3);
-
-            // then
-            assertThat(cartItem.getQuantity()).isEqualTo(6);
-        }
-    }
 }

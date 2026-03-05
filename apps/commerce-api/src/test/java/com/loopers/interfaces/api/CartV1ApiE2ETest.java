@@ -124,7 +124,7 @@ class CartV1ApiE2ETest {
     class AddToCart {
 
         @Test
-        @DisplayName("유효한 요청이면, 201 CREATED와 장바구니 아이템 정보를 반환한다.")
+        @DisplayName("유효한 요청이면, 201 CREATED를 반환한다.")
         void success_whenValidRequest() {
             // arrange
             saveMember();
@@ -136,9 +136,9 @@ class CartV1ApiE2ETest {
                     option.getId(), 2);
 
             // act
-            ParameterizedTypeReference<ApiResponse<CartV1Dto.CartItemResponse>> responseType =
+            ParameterizedTypeReference<ApiResponse<Void>> responseType =
                     new ParameterizedTypeReference<>() {};
-            ResponseEntity<ApiResponse<CartV1Dto.CartItemResponse>> response = testRestTemplate.exchange(
+            ResponseEntity<ApiResponse<Void>> response = testRestTemplate.exchange(
                     ENDPOINT_CART,
                     HttpMethod.POST,
                     new HttpEntity<>(request, memberAuthHeaders()),
@@ -148,8 +148,7 @@ class CartV1ApiE2ETest {
             assertAll(
                     () -> assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED),
                     () -> assertThat(response.getBody()).isNotNull(),
-                    () -> assertThat(response.getBody().data().productOptionId()).isEqualTo(option.getId()),
-                    () -> assertThat(response.getBody().data().quantity()).isEqualTo(2));
+                    () -> assertThat(response.getBody().meta().result().name()).isEqualTo("SUCCESS"));
         }
 
         @Test
@@ -167,9 +166,9 @@ class CartV1ApiE2ETest {
             headers.setContentType(MediaType.APPLICATION_JSON);
 
             // act
-            ParameterizedTypeReference<ApiResponse<CartV1Dto.CartItemResponse>> responseType =
+            ParameterizedTypeReference<ApiResponse<Void>> responseType =
                     new ParameterizedTypeReference<>() {};
-            ResponseEntity<ApiResponse<CartV1Dto.CartItemResponse>> response = testRestTemplate.exchange(
+            ResponseEntity<ApiResponse<Void>> response = testRestTemplate.exchange(
                     ENDPOINT_CART,
                     HttpMethod.POST,
                     new HttpEntity<>(request, headers),
@@ -180,7 +179,7 @@ class CartV1ApiE2ETest {
         }
 
         @Test
-        @DisplayName("존재하지 않는 옵션이면, 404 NOT_FOUND를 반환한다.")
+        @DisplayName("존재하지 않는 옵션이면, 400 BAD_REQUEST를 반환한다.")
         void fail_whenOptionNotFound() {
             // arrange
             saveMember();
@@ -189,16 +188,16 @@ class CartV1ApiE2ETest {
                     999L, 2);
 
             // act
-            ParameterizedTypeReference<ApiResponse<CartV1Dto.CartItemResponse>> responseType =
+            ParameterizedTypeReference<ApiResponse<Void>> responseType =
                     new ParameterizedTypeReference<>() {};
-            ResponseEntity<ApiResponse<CartV1Dto.CartItemResponse>> response = testRestTemplate.exchange(
+            ResponseEntity<ApiResponse<Void>> response = testRestTemplate.exchange(
                     ENDPOINT_CART,
                     HttpMethod.POST,
                     new HttpEntity<>(request, memberAuthHeaders()),
                     responseType);
 
             // assert
-            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         }
     }
 }

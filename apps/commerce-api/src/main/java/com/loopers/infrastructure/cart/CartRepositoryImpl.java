@@ -21,7 +21,12 @@ public class CartRepositoryImpl implements CartRepository {
 
     @Override
     public Optional<CartItem> findByMemberIdAndProductOptionId(Long memberId, Long productOptionId) {
-        return cartJpaRepository.findByMemberIdAndProductOptionIdAndDeletedAtIsNull(memberId, productOptionId);
+        return cartJpaRepository.findByMemberIdAndProductOptionId(memberId, productOptionId);
+    }
+
+    @Override
+    public void upsert(Long memberId, Long productOptionId, int quantity) {
+        cartJpaRepository.upsert(memberId, productOptionId, quantity);
     }
 
     @Override

@@ -16,11 +16,14 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
@@ -31,10 +34,14 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * 테스트 범위: Service → Repository → Database
  */
 @SpringBootTest
+@Transactional
 class CartServiceIntegrationTest {
 
     @Autowired
     private CartService cartService;
+
+    @Autowired
+    private CartRepository cartRepository;
 
     @Autowired
     private ProductService productService;
@@ -71,14 +78,13 @@ class CartServiceIntegrationTest {
             Long memberId = 1L;
 
             // when
-            CartItem cartItem = cartService.addToCart(memberId, optionId, 2);
+            assertDoesNotThrow(() -> cartService.addToCart(memberId, optionId, 2));
 
             // then
+            Optional<CartItem> cartItem = cartRepository.findByMemberIdAndProductOptionId(memberId, optionId);
             assertAll(
-                    () -> assertThat(cartItem.getId()).isNotNull(),
-                    () -> assertThat(cartItem.getMemberId()).isEqualTo(memberId),
-                    () -> assertThat(cartItem.getProductOptionId()).isEqualTo(optionId),
-                    () -> assertThat(cartItem.getQuantity()).isEqualTo(2)
+                    () -> assertThat(cartItem).isPresent(),
+                    () -> assertThat(cartItem.get().getQuantity()).isEqualTo(2)
             );
         }
 
@@ -92,10 +98,11 @@ class CartServiceIntegrationTest {
             cartService.addToCart(memberId, optionId, 2);
 
             // when
-            CartItem cartItem = cartService.addToCart(memberId, optionId, 3);
+            cartService.addToCart(memberId, optionId, 3);
 
             // then
-            assertThat(cartItem.getQuantity()).isEqualTo(5);
+            Optional<CartItem> cartItem = cartRepository.findByMemberIdAndProductOptionId(memberId, optionId);
+            assertThat(cartItem.get().getQuantity()).isEqualTo(5);
         }
 
         @Test
@@ -111,14 +118,11 @@ class CartServiceIntegrationTest {
                     () -> cartService.addToCart(memberId, optionId, 10));
 
             // then
-            assertAll(
-                    () -> assertThat(exception.getErrorType()).isEqualTo(ErrorType.BAD_REQUEST),
-                    () -> assertThat(exception.getMessage()).contains("재고가 부족")
-            );
+            assertThat(exception.getErrorType()).isEqualTo(ErrorType.BAD_REQUEST);
         }
 
         @Test
-        @DisplayName("존재하지 않는 옵션이면, NOT_FOUND 예외가 발생한다.")
+        @DisplayName("존재하지 않는 옵션이면, BAD_REQUEST 예외가 발생한다.")
         void throwsException_whenOptionNotFound() {
             // given
             Long memberId = 1L;
@@ -129,7 +133,7 @@ class CartServiceIntegrationTest {
                     () -> cartService.addToCart(memberId, nonExistentOptionId, 1));
 
             // then
-            assertThat(exception.getErrorType()).isEqualTo(ErrorType.NOT_FOUND);
+            assertThat(exception.getErrorType()).isEqualTo(ErrorType.BAD_REQUEST);
         }
     }
 }

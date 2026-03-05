@@ -9,6 +9,8 @@ public interface CartRepository {
 
     Optional<CartItem> findByMemberIdAndProductOptionId(Long memberId, Long productOptionId);
 
+    void upsert(Long memberId, Long productOptionId, int quantity);
+
     void deleteByProductOptionIds(List<Long> productOptionIds);
 
     void deleteByMemberIdAndProductOptionIds(Long memberId, List<Long> productOptionIds);

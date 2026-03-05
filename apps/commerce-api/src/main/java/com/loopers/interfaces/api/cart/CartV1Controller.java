@@ -1,7 +1,6 @@
 package com.loopers.interfaces.api.cart;
 
 import com.loopers.application.cart.CartFacade;
-import com.loopers.domain.cart.CartItem;
 import com.loopers.domain.member.Member;
 import com.loopers.interfaces.api.ApiResponse;
 import com.loopers.interfaces.api.auth.LoginMember;
@@ -23,13 +22,13 @@ public class CartV1Controller {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public ApiResponse<CartV1Dto.CartItemResponse> addToCart(
+    public ApiResponse<Void> addToCart(
             @LoginMember Member member,
             @RequestBody CartV1Dto.AddToCartRequest request) {
-        CartItem cartItem = cartFacade.addToCart(
+        cartFacade.addToCart(
                 member.getId(),
                 request.productOptionId(),
                 request.quantity());
-        return ApiResponse.success(CartV1Dto.CartItemResponse.from(cartItem));
+        return ApiResponse.success(null);
     }
 }

@@ -18,6 +18,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
@@ -38,12 +39,6 @@ class CartServiceTest {
     @InjectMocks
     private CartService cartService;
 
-    private CartItem createCartItemWithId(Long id, Long memberId, Long productOptionId, int quantity) {
-        CartItem cartItem = CartItem.create(memberId, productOptionId, quantity);
-        ReflectionTestUtils.setField(cartItem, "id", id);
-        return cartItem;
-    }
-
     private ProductOption createProductOptionWithId(Long id, Long productId, String optionName, int stockQuantity) {
         ProductOption option = new ProductOption(productId, optionName, stockQuantity);
         ReflectionTestUtils.setField(option, "id", id);
@@ -55,8 +50,8 @@ class CartServiceTest {
     class AddToCart {
 
         @Test
-        @DisplayName("새로운 아이템을 추가하면 장바구니에 저장된다.")
-        void savesNewItem_whenNotExists() {
+        @DisplayName("재고가 충분하면 UPSERT를 수행한다.")
+        void upsertsItem_whenStockEnough() {
             // given
             Long memberId = 1L;
             Long productOptionId = 10L;
@@ -64,18 +59,12 @@ class CartServiceTest {
 
             ProductOption option = createProductOptionWithId(productOptionId, 1L, "옵션A", 10);
             when(productRepository.findOptionById(productOptionId)).thenReturn(Optional.of(option));
-            when(cartRepository.findByMemberIdAndProductOptionId(memberId, productOptionId)).thenReturn(Optional.empty());
-            when(cartRepository.save(any(CartItem.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
             // when
-            CartItem result = cartService.addToCart(memberId, productOptionId, quantity);
+            assertDoesNotThrow(() -> cartService.addToCart(memberId, productOptionId, quantity));
 
             // then
-            assertAll(
-                    () -> assertThat(result.getMemberId()).isEqualTo(memberId),
-                    () -> assertThat(result.getProductOptionId()).isEqualTo(productOptionId),
-                    () -> assertThat(result.getQuantity()).isEqualTo(quantity),
-                    () -> verify(cartRepository, times(1)).save(any(CartItem.class)));
+            verify(cartRepository, times(1)).upsert(memberId, productOptionId, quantity);
         }
 
         @Test
@@ -96,57 +85,7 @@ class CartServiceTest {
             // then
             assertAll(
                     () -> assertThat(exception.getErrorType()).isEqualTo(ErrorType.BAD_REQUEST),
-                    () -> verify(cartRepository, never()).save(any(CartItem.class)));
-        }
-
-        @Test
-        @DisplayName("기존 아이템이 있으면 수량이 병합된다.")
-        void mergesQuantity_whenItemExists() {
-            // given
-            Long memberId = 1L;
-            Long productOptionId = 10L;
-            int existingQuantity = 3;
-            int additionalQuantity = 2;
-
-            ProductOption option = createProductOptionWithId(productOptionId, 1L, "옵션A", 10);
-            CartItem existingItem = createCartItemWithId(1L, memberId, productOptionId, existingQuantity);
-
-            when(productRepository.findOptionById(productOptionId)).thenReturn(Optional.of(option));
-            when(cartRepository.findByMemberIdAndProductOptionId(memberId, productOptionId)).thenReturn(Optional.of(existingItem));
-            when(cartRepository.save(any(CartItem.class))).thenAnswer(invocation -> invocation.getArgument(0));
-
-            // when
-            CartItem result = cartService.addToCart(memberId, productOptionId, additionalQuantity);
-
-            // then
-            assertAll(
-                    () -> assertThat(result.getQuantity()).isEqualTo(existingQuantity + additionalQuantity),
-                    () -> verify(cartRepository, times(1)).save(any(CartItem.class)));
-        }
-
-        @Test
-        @DisplayName("기존 수량과 합산하면 재고를 초과할 경우 BAD_REQUEST 예외가 발생한다.")
-        void throwsBadRequest_whenMergedQuantityExceedsStock() {
-            // given
-            Long memberId = 1L;
-            Long productOptionId = 10L;
-            int existingQuantity = 8;
-            int additionalQuantity = 5;
-
-            ProductOption option = createProductOptionWithId(productOptionId, 1L, "옵션A", 10);
-            CartItem existingItem = createCartItemWithId(1L, memberId, productOptionId, existingQuantity);
-
-            when(productRepository.findOptionById(productOptionId)).thenReturn(Optional.of(option));
-            when(cartRepository.findByMemberIdAndProductOptionId(memberId, productOptionId)).thenReturn(Optional.of(existingItem));
-
-            // when
-            CoreException exception = assertThrows(CoreException.class,
-                    () -> cartService.addToCart(memberId, productOptionId, additionalQuantity));
-
-            // then
-            assertAll(
-                    () -> assertThat(exception.getErrorType()).isEqualTo(ErrorType.BAD_REQUEST),
-                    () -> verify(cartRepository, never()).save(any(CartItem.class)));
+                    () -> verify(cartRepository, never()).upsert(any(), any(), any(int.class)));
         }
 
         @Test
@@ -165,7 +104,7 @@ class CartServiceTest {
             assertAll(
                     () -> assertThat(exception.getErrorType()).isEqualTo(ErrorType.BAD_REQUEST),
                     () -> verify(productRepository, never()).findOptionById(any()),
-                    () -> verify(cartRepository, never()).save(any(CartItem.class)));
+                    () -> verify(cartRepository, never()).upsert(any(), any(), any(int.class)));
         }
 
         @Test
@@ -184,12 +123,12 @@ class CartServiceTest {
             assertAll(
                     () -> assertThat(exception.getErrorType()).isEqualTo(ErrorType.BAD_REQUEST),
                     () -> verify(productRepository, never()).findOptionById(any()),
-                    () -> verify(cartRepository, never()).save(any(CartItem.class)));
+                    () -> verify(cartRepository, never()).upsert(any(), any(), any(int.class)));
         }
 
         @Test
-        @DisplayName("존재하지 않는 상품 옵션이면 NOT_FOUND 예외가 발생한다.")
-        void throwsNotFound_whenOptionNotExists() {
+        @DisplayName("존재하지 않는 상품 옵션이면 BAD_REQUEST 예외가 발생한다.")
+        void throwsBadRequest_whenOptionNotExists() {
             // given
             Long memberId = 1L;
             Long productOptionId = 999L;
@@ -203,8 +142,8 @@ class CartServiceTest {
 
             // then
             assertAll(
-                    () -> assertThat(exception.getErrorType()).isEqualTo(ErrorType.NOT_FOUND),
-                    () -> verify(cartRepository, never()).save(any(CartItem.class)));
+                    () -> assertThat(exception.getErrorType()).isEqualTo(ErrorType.BAD_REQUEST),
+                    () -> verify(cartRepository, never()).upsert(any(), any(), any(int.class)));
         }
     }
 
