@@ -196,7 +196,8 @@ class CouponServiceTest {
                     DiscountType.FIXED_AMOUNT, 1000, 0, 0,
                     ZonedDateTime.now().minusDays(1), ZonedDateTime.now().plusDays(30));
             when(couponRepository.findById(1L)).thenReturn(Optional.of(coupon));
-            when(memberCouponRepository.findByMemberIdAndCouponId(1L, 1L)).thenReturn(Optional.empty());
+            when(memberCouponRepository.findByMemberIdAndCouponIdIncludingDeleted(1L, 1L))
+                    .thenReturn(Optional.empty());
             when(memberCouponRepository.save(any(MemberCoupon.class)))
                     .thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -223,7 +224,7 @@ class CouponServiceTest {
                     MemberCouponStatus.AVAILABLE, null);
 
             when(couponRepository.findById(1L)).thenReturn(Optional.of(coupon));
-            when(memberCouponRepository.findByMemberIdAndCouponId(1L, 1L))
+            when(memberCouponRepository.findByMemberIdAndCouponIdIncludingDeleted(1L, 1L))
                     .thenReturn(Optional.of(existingCoupon));
 
             // when
@@ -235,6 +236,33 @@ class CouponServiceTest {
                     () -> assertThat(exception.getErrorType()).isEqualTo(ErrorType.CONFLICT),
                     () -> assertThat(exception.getMessage()).contains("이미 다운로드"),
                     () -> verify(memberCouponRepository, never()).save(any(MemberCoupon.class)));
+        }
+
+        @Test
+        @DisplayName("삭제된 쿠폰이 있으면 재발급하여 AVAILABLE로 복원한다.")
+        void reissuesCoupon_whenDeletedExists() {
+            // given
+            Coupon coupon = createCouponWithId(1L, "쿠폰", CouponScope.CART, null,
+                    DiscountType.FIXED_AMOUNT, 1000, 0, 0,
+                    ZonedDateTime.now().minusDays(1), ZonedDateTime.now().plusDays(30));
+            MemberCoupon deletedCoupon = createMemberCouponWithId(1L, 1L, 1L,
+                    MemberCouponStatus.DELETED, null);
+
+            when(couponRepository.findById(1L)).thenReturn(Optional.of(coupon));
+            when(memberCouponRepository.findByMemberIdAndCouponIdIncludingDeleted(1L, 1L))
+                    .thenReturn(Optional.of(deletedCoupon));
+            when(memberCouponRepository.save(any(MemberCoupon.class)))
+                    .thenAnswer(invocation -> invocation.getArgument(0));
+
+            // when
+            MemberCouponDetail result = couponService.downloadCoupon(1L, 1L);
+
+            // then
+            assertAll(
+                    () -> assertThat(result.memberCoupon().getStatus()).isEqualTo(MemberCouponStatus.AVAILABLE),
+                    () -> assertThat(result.memberCoupon().getOrderId()).isNull(),
+                    () -> assertThat(result.memberCoupon().getUsedAt()).isNull(),
+                    () -> verify(memberCouponRepository, times(1)).save(any(MemberCoupon.class)));
         }
 
         @Test

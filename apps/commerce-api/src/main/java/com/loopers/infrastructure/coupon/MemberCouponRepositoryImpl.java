@@ -28,6 +28,11 @@ public class MemberCouponRepositoryImpl implements MemberCouponRepository {
     }
 
     @Override
+    public Optional<MemberCoupon> findByMemberIdAndCouponIdIncludingDeleted(Long memberId, Long couponId) {
+        return memberCouponJpaRepository.findByMemberIdAndCouponId(memberId, couponId);
+    }
+
+    @Override
     public List<MemberCoupon> findByMemberIdAndStatus(Long memberId, MemberCouponStatus status) {
         return memberCouponJpaRepository
                 .findByMemberIdAndStatusAndDeletedAtIsNull(memberId, status);

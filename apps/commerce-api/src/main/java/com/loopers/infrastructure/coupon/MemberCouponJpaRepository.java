@@ -15,6 +15,8 @@ public interface MemberCouponJpaRepository extends JpaRepository<MemberCoupon, L
 
     Optional<MemberCoupon> findByMemberIdAndCouponIdAndDeletedAtIsNull(Long memberId, Long couponId);
 
+    Optional<MemberCoupon> findByMemberIdAndCouponId(Long memberId, Long couponId);
+
     List<MemberCoupon> findByMemberIdAndStatusAndDeletedAtIsNull(Long memberId, MemberCouponStatus status);
 
     List<MemberCoupon> findByMemberIdAndDeletedAtIsNull(Long memberId);

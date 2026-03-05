@@ -12,6 +12,8 @@ public interface MemberCouponRepository {
 
     Optional<MemberCoupon> findByMemberIdAndCouponId(Long memberId, Long couponId);
 
+    Optional<MemberCoupon> findByMemberIdAndCouponIdIncludingDeleted(Long memberId, Long couponId);
+
     List<MemberCoupon> findByMemberIdAndStatus(Long memberId, MemberCouponStatus status);
 
     List<MemberCoupon> findByMemberId(Long memberId);

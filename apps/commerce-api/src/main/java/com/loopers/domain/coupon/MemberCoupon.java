@@ -67,4 +67,28 @@ public class MemberCoupon extends BaseEntity {
     public boolean isAvailable() {
         return this.status == MemberCouponStatus.AVAILABLE;
     }
+
+    /**
+     * 쿠폰 삭제 처리 (상태 기반 soft delete)
+     * - BaseEntity의 deletedAt과 함께 상태를 DELETED로 변경
+     */
+    public void markDeleted() {
+        this.status = MemberCouponStatus.DELETED;
+        this.delete();
+    }
+
+    /**
+     * 삭제된 쿠폰 재발급 처리
+     * - DELETED 상태에서만 호출 가능
+     * - 상태를 AVAILABLE로 복원하고 사용 이력을 초기화
+     */
+    public void reissue() {
+        if (this.status != MemberCouponStatus.DELETED) {
+            throw new CoreException(ErrorType.CONFLICT, "이미 다운로드한 쿠폰입니다.");
+        }
+        this.status = MemberCouponStatus.AVAILABLE;
+        this.orderId = null;
+        this.usedAt = null;
+        this.restore();
+    }
 }

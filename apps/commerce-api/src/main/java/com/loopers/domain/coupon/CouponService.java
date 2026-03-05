@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -63,16 +64,20 @@ public class CouponService {
             throw new CoreException(ErrorType.BAD_REQUEST, "쿠폰 발급이 불가합니다.");
         }
 
-        // 중복 다운로드 검사
-        memberCouponRepository.findByMemberIdAndCouponId(memberId, couponId)
-                .ifPresent(mc -> {
-                    throw new CoreException(ErrorType.CONFLICT, "이미 다운로드한 쿠폰입니다.");
-                });
-
-        // 회원 쿠폰 생성 및 저장
+        // 삭제된 행 포함 조회하여 중복/재발급 판단
         // 동시 요청에 의한 UniqueConstraint 위반은 DataIntegrityViolationException으로 발생하며,
         // ApiControllerAdvice에서 409 CONFLICT로 처리된다.
-        MemberCoupon memberCoupon = new MemberCoupon(memberId, couponId);
+        Optional<MemberCoupon> existing = memberCouponRepository
+                .findByMemberIdAndCouponIdIncludingDeleted(memberId, couponId);
+
+        MemberCoupon memberCoupon;
+        if (existing.isPresent()) {
+            memberCoupon = existing.get();
+            memberCoupon.reissue();
+        } else {
+            memberCoupon = new MemberCoupon(memberId, couponId);
+        }
+
         MemberCoupon savedMemberCoupon = memberCouponRepository.save(memberCoupon);
         return new MemberCouponDetail(savedMemberCoupon, coupon);
     }
