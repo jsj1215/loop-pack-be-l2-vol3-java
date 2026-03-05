@@ -6,8 +6,11 @@ import com.fasterxml.jackson.databind.exc.MismatchedInputException;
 import com.loopers.support.error.CoreException;
 import com.loopers.support.error.ErrorType;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -105,6 +108,24 @@ public class ApiControllerAdvice {
     @ExceptionHandler
     public ResponseEntity<ApiResponse<?>> handleNotFound(NoResourceFoundException e) {
         return failureResponse(ErrorType.NOT_FOUND, null);
+    }
+
+    @ExceptionHandler
+    public ResponseEntity<ApiResponse<?>> handleOptimisticLock(ObjectOptimisticLockingFailureException e) {
+        log.warn("OptimisticLockingFailure : {}", e.getMessage(), e);
+        return failureResponse(ErrorType.CONFLICT, "동시 요청으로 처리에 실패했습니다. 다시 시도해주세요.");
+    }
+
+    @ExceptionHandler
+    public ResponseEntity<ApiResponse<?>> handlePessimisticLock(PessimisticLockingFailureException e) {
+        log.warn("PessimisticLockingFailure : {}", e.getMessage(), e);
+        return failureResponse(ErrorType.CONFLICT, "동시 요청으로 처리에 실패했습니다. 다시 시도해주세요.");
+    }
+
+    @ExceptionHandler
+    public ResponseEntity<ApiResponse<?>> handleDataIntegrityViolation(DataIntegrityViolationException e) {
+        log.warn("DataIntegrityViolation : {}", e.getMessage(), e);
+        return failureResponse(ErrorType.CONFLICT, "데이터 충돌이 발생했습니다. 다시 시도해주세요.");
     }
 
     @ExceptionHandler
