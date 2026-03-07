@@ -64,7 +64,7 @@
   1. CouponService.calculateCouponDiscount(): 쿠폰 제출 시 소유 검증/유효기간/최소 주문 금액/할인 금액 계산 (재고 차감 전 수행 — 락 보유 시간 단축)
   2. OrderService.prepareOrderItems(): 주문 항목별 재고 검증 및 차감 + 스냅샷 생성. 재고 부족 시 400 Bad Request
   3. OrderService.createOrder(): 주문 데이터 저장
-  4. CouponService.useCoupon(): 쿠폰 사용 처리 (AVAILABLE → USED)
+  4. CouponService.useCoupon(): 쿠폰 사용 처리 — 원자적 UPDATE (AVAILABLE → USED, affected rows=0이면 CONFLICT)
   5. PointService.usePoint(): 포인트 차감 (잔액 부족 시 400 Bad Request)
   6. CartService.deleteByMemberIdAndProductOptionIds(): 장바구니에서 주문한 항목 삭제
   - 실패 시 Facade의 @Transactional 롤백으로 전체 자동 복원 (결제 기능 없음)

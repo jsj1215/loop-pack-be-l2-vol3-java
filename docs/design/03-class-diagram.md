@@ -246,16 +246,14 @@ classDiagram
     }
 
     class MemberCoupon {
-        <<Entity - @Version 낙관적 락>>
+        <<Entity - 원자적 UPDATE>>
         -Long id
         -Long memberId
         -Long couponId
         -MemberCouponStatus status
         -Long orderId
         -ZonedDateTime usedAt
-        -Long version
         +create(Long memberId, Long couponId) MemberCoupon$
-        +use(Long orderId) void
         +isAvailable() boolean
         <<UNIQUE>> member_id + coupon_id
     }
@@ -310,7 +308,7 @@ classDiagram
 - **Order.getPaymentAmount()**: 실결제금액 = totalAmount - discountAmount - usedPoints
 - **OrderItem.brandId**: 브랜드 ID 스냅샷. 브랜드 쿠폰 적용 대상 판별에 사용
 - **Coupon.calculateDiscount(applicableAmount)**: 적용 대상 금액에 대한 할인 금액 계산. FIXED_RATE 시 maxDiscountAmount 상한 적용, 적용 대상 금액 초과 방지
-- **MemberCoupon.use(orderId)**: AVAILABLE → USED 상태 전환. 이미 사용된 쿠폰이면 예외 발생
+- **MemberCoupon 쿠폰 사용**: 원자적 UPDATE (`UPDATE ... WHERE status='AVAILABLE'`)로 AVAILABLE → USED 상태 전환. `affected rows = 0`이면 이미 사용된 쿠폰으로 CONFLICT 예외
 - **CouponScope**: PRODUCT(특정 상품), BRAND(특정 브랜드), CART(장바구니 전체) 3단계 적용 범위
 
 ---
@@ -469,7 +467,7 @@ classDiagram
         +findAllMyCoupons(Long memberId) List~MemberCoupon~
         +getMyCouponDetails(Long memberId) List~MemberCouponDetail~
         +getMemberCoupon(Long memberCouponId) MemberCoupon
-        +useCoupon(Long memberId, Long memberCouponId, Long orderId) MemberCoupon
+        +useCoupon(Long memberId, Long memberCouponId, Long orderId) void
         +calculateCouponDiscount(Long memberId, Long memberCouponId, int applicableAmount) int
         +updateCoupon(Long couponId, ...) Coupon
         +softDelete(Long couponId) void
@@ -492,6 +490,7 @@ classDiagram
         +findByMemberId(Long memberId) List~MemberCoupon~
         +findByCouponId(Long couponId, Pageable) Page~MemberCoupon~
         +save(MemberCoupon) MemberCoupon
+        +updateStatusToUsed(Long id, Long orderId, ZonedDateTime usedAt) int
     }
 
     BrandService --> BrandRepository

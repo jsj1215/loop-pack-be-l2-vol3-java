@@ -392,9 +392,9 @@ sequenceDiagram
     OrderService-->>Facade: 주문 정보
 
     opt memberCouponId가 존재하는 경우
-        Facade->>CouponService: 쿠폰 사용 처리 (memberCouponId, orderId)
-        Note over CouponService: MemberCoupon.use(orderId) - AVAILABLE → USED
-        CouponService->>MemberCouponRepository: 회원 쿠폰 상태 업데이트
+        Facade->>CouponService: 쿠폰 사용 처리 (memberId, memberCouponId, orderId)
+        Note over CouponService: 원자적 UPDATE (WHERE status='AVAILABLE') → USED
+        CouponService->>MemberCouponRepository: updateStatusToUsed(id, orderId, usedAt)
     end
 
     opt usedPoints > 0인 경우

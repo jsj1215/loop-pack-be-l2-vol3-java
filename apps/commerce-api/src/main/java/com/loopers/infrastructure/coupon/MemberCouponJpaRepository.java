@@ -5,7 +5,11 @@ import com.loopers.domain.coupon.MemberCouponStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
+import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -22,4 +26,9 @@ public interface MemberCouponJpaRepository extends JpaRepository<MemberCoupon, L
     List<MemberCoupon> findByMemberIdAndDeletedAtIsNull(Long memberId);
 
     Page<MemberCoupon> findByCouponIdAndDeletedAtIsNull(Long couponId, Pageable pageable);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("UPDATE MemberCoupon mc SET mc.status = 'USED', mc.orderId = :orderId, mc.usedAt = :usedAt " +
+            "WHERE mc.id = :id AND mc.status = 'AVAILABLE'")
+    int updateStatusToUsed(@Param("id") Long id, @Param("orderId") Long orderId, @Param("usedAt") ZonedDateTime usedAt);
 }

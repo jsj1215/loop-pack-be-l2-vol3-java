@@ -517,7 +517,7 @@ class CouponServiceTest {
     class UseCoupon {
 
         @Test
-        @DisplayName("사용 가능한 쿠폰이면 USED로 변경된다.")
+        @DisplayName("사용 가능한 쿠폰이면 원자적 업데이트로 USED 처리된다.")
         void changesStatusToUsed_whenAvailable() {
             // given
             MemberCoupon memberCoupon = createMemberCouponWithId(1L, 1L, 10L,
@@ -527,17 +527,37 @@ class CouponServiceTest {
                     ZonedDateTime.now().minusDays(1), ZonedDateTime.now().plusDays(30));
             when(memberCouponRepository.findById(1L)).thenReturn(Optional.of(memberCoupon));
             when(couponRepository.findById(10L)).thenReturn(Optional.of(coupon));
-            when(memberCouponRepository.save(any(MemberCoupon.class)))
-                    .thenAnswer(invocation -> invocation.getArgument(0));
+            when(memberCouponRepository.updateStatusToUsed(any(Long.class), any(Long.class), any(ZonedDateTime.class)))
+                    .thenReturn(1);
 
             // when
-            MemberCoupon result = couponService.useCoupon(1L, 1L, 100L);
+            couponService.useCoupon(1L, 1L, 100L);
 
             // then
-            assertAll(
-                    () -> assertThat(result.getStatus()).isEqualTo(MemberCouponStatus.USED),
-                    () -> assertThat(result.getOrderId()).isEqualTo(100L),
-                    () -> verify(memberCouponRepository, times(1)).save(any(MemberCoupon.class)));
+            verify(memberCouponRepository, times(1))
+                    .updateStatusToUsed(any(Long.class), any(Long.class), any(ZonedDateTime.class));
+        }
+
+        @Test
+        @DisplayName("이미 사용된 쿠폰이면 CONFLICT 예외가 발생한다.")
+        void throwsConflict_whenAlreadyUsed() {
+            // given
+            MemberCoupon memberCoupon = createMemberCouponWithId(1L, 1L, 10L,
+                    MemberCouponStatus.AVAILABLE, null);
+            Coupon coupon = createCouponWithId(10L, "쿠폰", CouponScope.CART, null,
+                    DiscountType.FIXED_AMOUNT, 1000, 0, 0,
+                    ZonedDateTime.now().minusDays(1), ZonedDateTime.now().plusDays(30));
+            when(memberCouponRepository.findById(1L)).thenReturn(Optional.of(memberCoupon));
+            when(couponRepository.findById(10L)).thenReturn(Optional.of(coupon));
+            when(memberCouponRepository.updateStatusToUsed(any(Long.class), any(Long.class), any(ZonedDateTime.class)))
+                    .thenReturn(0);
+
+            // when
+            CoreException exception = assertThrows(CoreException.class,
+                    () -> couponService.useCoupon(1L, 1L, 100L));
+
+            // then
+            assertThat(exception.getErrorType()).isEqualTo(ErrorType.CONFLICT);
         }
 
         @Test
@@ -560,7 +580,8 @@ class CouponServiceTest {
             assertAll(
                     () -> assertThat(exception.getErrorType()).isEqualTo(ErrorType.BAD_REQUEST),
                     () -> assertThat(exception.getMessage()).contains("유효기간이 만료"),
-                    () -> verify(memberCouponRepository, never()).save(any(MemberCoupon.class)));
+                    () -> verify(memberCouponRepository, never())
+                            .updateStatusToUsed(any(Long.class), any(Long.class), any(ZonedDateTime.class)));
         }
 
         @Test

@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
+
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Map;
@@ -115,11 +116,12 @@ public class CouponService {
     }
 
     /**
-     * 쿠폰 사용 처리
-     * - 소유권 검증 후 AVAILABLE → USED 상태 전환
+     * 쿠폰 사용 처리 (원자적 업데이트)
+     * - 소유권/유효기간 검증 후, UPDATE ... WHERE status='AVAILABLE' 로 상태 전환
+     * - affected rows = 0 이면 이미 사용된 쿠폰으로 판단하여 CONFLICT 예외 발생
      * - 반드시 상위 레이어(@Transactional)의 트랜잭션 내에서 호출되어야 한다.
      */
-    public MemberCoupon useCoupon(Long memberId, Long memberCouponId, Long orderId) {
+    public void useCoupon(Long memberId, Long memberCouponId, Long orderId) {
         MemberCoupon memberCoupon = memberCouponRepository.findById(memberCouponId)
                 .orElseThrow(() -> new CoreException(ErrorType.NOT_FOUND, "쿠폰을 찾을 수 없습니다."));
 
@@ -134,8 +136,10 @@ public class CouponService {
             throw new CoreException(ErrorType.BAD_REQUEST, "유효기간이 만료된 쿠폰입니다.");
         }
 
-        memberCoupon.use(orderId);
-        return memberCouponRepository.save(memberCoupon);
+        int updatedCount = memberCouponRepository.updateStatusToUsed(memberCouponId, orderId, ZonedDateTime.now());
+        if (updatedCount == 0) {
+            throw new CoreException(ErrorType.CONFLICT, "이미 사용된 쿠폰입니다.");
+        }
     }
 
     /**

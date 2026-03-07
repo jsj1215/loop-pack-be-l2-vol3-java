@@ -49,18 +49,18 @@ public class OrderFacade {
             discountAmount = couponService.calculateCouponDiscount(memberId, memberCouponId, applicableAmount);
         }
 
-        // 2. 재고 검증/차감 + 스냅샷 생성
+        // 2. 재고 검증/차감_비관적락 + 스냅샷 생성
         List<OrderItem> orderItems = orderService.prepareOrderItems(itemRequests);
 
         // 3. 주문 생성 및 저장
         Order order = orderService.createOrder(memberId, orderItems, discountAmount, memberCouponId, usedPoints);
 
-        // 4. 쿠폰 사용 처리
+        // 4. 쿠폰 사용 처리_원자적 업데이트
         if (memberCouponId != null) {
             couponService.useCoupon(memberId, memberCouponId, order.getId());
         }
 
-        // 5. 포인트 사용 처리
+        // 5. 포인트 사용 처리_비관적락
         if (usedPoints > 0) {
             pointService.usePoint(memberId, usedPoints, "주문 사용", order.getId());
         }

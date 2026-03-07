@@ -40,47 +40,6 @@ class MemberCouponTest {
     }
 
     @Nested
-    @DisplayName("쿠폰을 사용할 때,")
-    class Use {
-
-        @Test
-        @DisplayName("AVAILABLE 상태에서 사용하면 USED로 변경된다.")
-        void changesStatusToUsed_whenAvailable() {
-            // given
-            MemberCoupon memberCoupon = new MemberCoupon(1L, 10L);
-            ReflectionTestUtils.setField(memberCoupon, "id", 1L);
-
-            // when
-            memberCoupon.use(100L);
-
-            // then
-            assertAll(
-                    () -> assertThat(memberCoupon.getStatus()).isEqualTo(MemberCouponStatus.USED),
-                    () -> assertThat(memberCoupon.getOrderId()).isEqualTo(100L),
-                    () -> assertThat(memberCoupon.getUsedAt()).isNotNull());
-        }
-
-        @Test
-        @DisplayName("이미 사용된 쿠폰이면 BAD_REQUEST 예외가 발생한다.")
-        void throwsBadRequest_whenAlreadyUsed() {
-            // given
-            MemberCoupon memberCoupon = new MemberCoupon(1L, 10L);
-            ReflectionTestUtils.setField(memberCoupon, "id", 1L);
-            ReflectionTestUtils.setField(memberCoupon, "status", MemberCouponStatus.USED);
-            ReflectionTestUtils.setField(memberCoupon, "orderId", 50L);
-
-            // when
-            CoreException exception = assertThrows(CoreException.class,
-                    () -> memberCoupon.use(100L));
-
-            // then
-            assertAll(
-                    () -> assertThat(exception.getErrorType()).isEqualTo(ErrorType.BAD_REQUEST),
-                    () -> assertThat(exception.getMessage()).contains("사용할 수 없는 쿠폰"));
-        }
-    }
-
-    @Nested
     @DisplayName("쿠폰을 삭제할 때,")
     class MarkDeleted {
 

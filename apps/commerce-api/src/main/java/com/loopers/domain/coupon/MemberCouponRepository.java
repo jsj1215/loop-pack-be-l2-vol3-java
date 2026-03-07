@@ -3,6 +3,7 @@ package com.loopers.domain.coupon;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -21,4 +22,6 @@ public interface MemberCouponRepository {
     Page<MemberCoupon> findByCouponId(Long couponId, Pageable pageable);
 
     MemberCoupon save(MemberCoupon memberCoupon);
+
+    int updateStatusToUsed(Long id, Long orderId, ZonedDateTime usedAt);
 }

@@ -375,12 +375,14 @@ class CouponServiceIntegrationTest {
             Coupon savedCoupon = createValidCoupon("신규가입 쿠폰");
             Long memberId = 1L;
             MemberCouponDetail downloadDetail = couponService.downloadCoupon(memberId, savedCoupon.getId());
+            Long memberCouponId = downloadDetail.memberCoupon().getId();
             Long orderId = 1L;
 
             // when
-            MemberCoupon usedCoupon = couponService.useCoupon(memberId, downloadDetail.memberCoupon().getId(), orderId);
+            couponService.useCoupon(memberId, memberCouponId, orderId);
 
             // then
+            MemberCoupon usedCoupon = couponService.getMemberCoupon(memberCouponId);
             assertAll(
                     () -> assertThat(usedCoupon.getStatus()).isEqualTo(MemberCouponStatus.USED),
                     () -> assertThat(usedCoupon.getOrderId()).isEqualTo(orderId),

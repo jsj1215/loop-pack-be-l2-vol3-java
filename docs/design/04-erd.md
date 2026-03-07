@@ -181,7 +181,6 @@ erDiagram
         varchar status "쿠폰 상태 (AVAILABLE/USED)"
         bigint order_id "사용된 주문 ID (nullable, USED 시)"
         datetime used_at "사용 일시 (nullable)"
-        bigint version "낙관적 락 버전 (@Version)"
         datetime created_at "생성일시"
         varchar created_by "생성자"
         datetime updated_at "수정일시"

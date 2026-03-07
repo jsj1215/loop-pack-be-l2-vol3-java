@@ -8,6 +8,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
+import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -51,5 +52,10 @@ public class MemberCouponRepositoryImpl implements MemberCouponRepository {
     @Override
     public MemberCoupon save(MemberCoupon memberCoupon) {
         return memberCouponJpaRepository.save(memberCoupon);
+    }
+
+    @Override
+    public int updateStatusToUsed(Long id, Long orderId, ZonedDateTime usedAt) {
+        return memberCouponJpaRepository.updateStatusToUsed(id, orderId, usedAt);
     }
 }

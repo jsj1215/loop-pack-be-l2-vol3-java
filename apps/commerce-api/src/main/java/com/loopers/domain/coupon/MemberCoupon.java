@@ -11,7 +11,6 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
-import jakarta.persistence.Version;
 import lombok.Getter;
 
 @Getter
@@ -37,28 +36,12 @@ public class MemberCoupon extends BaseEntity {
     @Column(name = "used_at")
     private ZonedDateTime usedAt;
 
-    @Version
-    @Column(name = "version")
-    private Long version;
-
     protected MemberCoupon() {}
 
     public MemberCoupon(Long memberId, Long couponId) {
         this.memberId = memberId;
         this.couponId = couponId;
         this.status = MemberCouponStatus.AVAILABLE;
-    }
-
-    /**
-     * 쿠폰 사용 처리
-     */
-    public void use(Long orderId) {
-        if (this.status != MemberCouponStatus.AVAILABLE) {
-            throw new CoreException(ErrorType.BAD_REQUEST, "사용할 수 없는 쿠폰입니다.");
-        }
-        this.status = MemberCouponStatus.USED;
-        this.orderId = orderId;
-        this.usedAt = ZonedDateTime.now();
     }
 
     /**
