@@ -55,6 +55,11 @@ spring:
     hibernate:
       ddl-auto: create
 
+logging:
+  level:
+    org.hibernate.SQL: DEBUG
+    org.hibernate.orm.jdbc.bind: TRACE
+
 datasource:
   mysql-jpa:
     main:

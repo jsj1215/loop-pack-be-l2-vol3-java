@@ -1,0 +1,71 @@
+### 회원가입 - 성공
+POST {{commerce-api}}/api/v1/members/signup
+Content-Type: application/json
+
+{
+  "loginId": "testuser1",
+  "password": "Password1!",
+  "name": "홍길동",
+  "email": "test@example.com",
+  "birthDate": "19990101"
+}
+
+### 회원가입 - 로그인 ID 형식 오류 (4자 미만)
+POST {{commerce-api}}/api/v1/members/signup
+Content-Type: application/json
+
+{
+  "loginId": "ab",
+  "password": "Password1!",
+  "name": "홍길동",
+  "email": "test@example.com",
+  "birthDate": "19990101"
+}
+
+### 회원가입 - 비밀번호에 생년월일 포함
+POST {{commerce-api}}/api/v1/members/signup
+Content-Type: application/json
+
+{
+  "loginId": "testuser2",
+  "password": "Pass19990101!",
+  "name": "홍길동",
+  "email": "test@example.com",
+  "birthDate": "19990101"
+}
+
+### 회원가입 - 이름 형식 오류 (한글 아님)
+POST {{commerce-api}}/api/v1/members/signup
+Content-Type: application/json
+
+{
+  "loginId": "testuser3",
+  "password": "Password1!",
+  "name": "Hong",
+  "email": "test@example.com",
+  "birthDate": "19990101"
+}
+
+### 회원가입 - 이메일 형식 오류
+POST {{commerce-api}}/api/v1/members/signup
+Content-Type: application/json
+
+{
+  "loginId": "testuser4",
+  "password": "Password1!",
+  "name": "홍길동",
+  "email": "invalid-email",
+  "birthDate": "19990101"
+}
+
+### 회원가입 - 생년월일 형식 오류
+POST {{commerce-api}}/api/v1/members/signup
+Content-Type: application/json
+
+{
+  "loginId": "testuser5",
+  "password": "Password1!",
+  "name": "홍길동",
+  "email": "test@example.com",
+  "birthDate": "1992-12-15"
+}
