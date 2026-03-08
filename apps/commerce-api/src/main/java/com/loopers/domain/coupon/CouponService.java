@@ -102,6 +102,7 @@ public class CouponService {
                 .collect(Collectors.toMap(Coupon::getId, Function.identity()));
 
         return memberCoupons.stream()
+                .filter(mc -> couponMap.containsKey(mc.getCouponId()))
                 .map(mc -> new MemberCouponDetail(mc, couponMap.get(mc.getCouponId())))
                 .toList();
     }

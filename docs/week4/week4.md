@@ -257,6 +257,13 @@
   - `CouponServiceIntegrationTest` — `downloadCoupon` 반환타입 변경 + `GetMyCouponDetails` nested class 추가
   - `CouponFacadeTest` — mock 설정을 `MemberCouponDetail` 기반으로 변경, `getMyCouponDetails()` mock 사용
 
+### `CouponService.getMyCouponDetails()` 삭제된 쿠폰 NPE 방지
+- **이유**: `couponMap.get(mc.getCouponId())`에서 쿠폰이 soft delete된 경우 null이 반환되어 `MemberCouponDetail` 생성 시 NPE 발생 가능
+- **해결**: `couponMap.containsKey()`로 필터링하여 삭제된 쿠폰에 대한 memberCoupon 항목을 결과에서 제외
+- **변경 파일**:
+  - `CouponService` — `getMyCouponDetails()`에 `filter(mc -> couponMap.containsKey(mc.getCouponId()))` 추가
+  - `CouponServiceTest` — `excludesDeletedCoupons()` 테스트 추가
+
 ### 비관적 락(Pessimistic Lock) 적용 — 쿠폰 수정/삭제 동시성 제어
 - **이유**: 고객 발급 중 어드민이 쿠폰을 삭제/수정하면 삭제된 쿠폰이 발급되거나 변경 사항이 무시될 수 있음
 - **해결**: `SELECT ... FOR UPDATE` 비관적 락을 적용하여 어드민 수정/삭제 시 동시 발급과의 충돌 방지

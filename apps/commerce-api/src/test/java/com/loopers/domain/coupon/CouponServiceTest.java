@@ -388,6 +388,32 @@ class CouponServiceTest {
         }
 
         @Test
+        @DisplayName("삭제된 쿠폰이 포함된 경우 해당 항목을 제외하고 반환한다.")
+        void excludesDeletedCoupons() {
+            // given
+            MemberCoupon mc1 = createMemberCouponWithId(1L, 1L, 10L,
+                    MemberCouponStatus.AVAILABLE, null);
+            MemberCoupon mc2 = createMemberCouponWithId(2L, 1L, 20L,
+                    MemberCouponStatus.AVAILABLE, null);
+
+            Coupon coupon1 = createCouponWithId(10L, "쿠폰A", CouponScope.CART, null,
+                    DiscountType.FIXED_AMOUNT, 1000, 0, 0,
+                    ZonedDateTime.now().minusDays(1), ZonedDateTime.now().plusDays(30));
+
+            when(memberCouponRepository.findByMemberId(1L)).thenReturn(List.of(mc1, mc2));
+            when(couponRepository.findByIds(List.of(10L, 20L))).thenReturn(List.of(coupon1));
+
+            // when
+            List<MemberCouponDetail> result = couponService.getMyCouponDetails(1L);
+
+            // then
+            assertAll(
+                    () -> assertThat(result).hasSize(1),
+                    () -> assertThat(result.get(0).memberCoupon()).isEqualTo(mc1),
+                    () -> assertThat(result.get(0).coupon()).isEqualTo(coupon1));
+        }
+
+        @Test
         @DisplayName("내 쿠폰이 없으면 빈 목록을 반환한다.")
         void returnsEmptyList_whenNoCoupons() {
             // given
