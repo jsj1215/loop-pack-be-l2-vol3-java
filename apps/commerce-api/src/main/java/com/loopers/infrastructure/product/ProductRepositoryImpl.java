@@ -6,8 +6,10 @@ import com.loopers.domain.product.ProductOption;
 import com.loopers.domain.product.ProductRepository;
 import com.loopers.domain.product.ProductSearchCondition;
 import com.loopers.domain.product.ProductStatus;
+import com.loopers.domain.like.QProductLikeSummary;
 import com.querydsl.core.BooleanBuilder;
 import com.querydsl.core.types.OrderSpecifier;
+import com.querydsl.core.types.dsl.NumberExpression;
 import com.querydsl.jpa.impl.JPAQuery;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import jakarta.persistence.EntityManager;
@@ -23,6 +25,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import static com.loopers.domain.brand.QBrand.brand;
+import static com.loopers.domain.like.QProductLikeSummary.productLikeSummary;
 import static com.loopers.domain.product.QProduct.product;
 import static java.util.stream.Collectors.groupingBy;
 
@@ -126,6 +129,52 @@ public class ProductRepositoryImpl implements ProductRepository {
         JPAQuery<Product> query = queryFactory
                 .selectFrom(product)
                 .join(product.brand, brand).fetchJoin()
+                .where(builder)
+                .orderBy(orderSpecifier)
+                .offset(pageable.getOffset())
+                .limit(pageable.getPageSize());
+
+        List<Product> products = query.fetch();
+
+        Long total = queryFactory
+                .select(product.count())
+                .from(product)
+                .where(builder)
+                .fetchOne();
+
+        List<Product> productsWithOptions = assembleWithOptions(products);
+
+        return new PageImpl<>(productsWithOptions, pageable, total != null ? total : 0L);
+    }
+
+    @Override
+    public Page<Product> searchWithMaterializedView(ProductSearchCondition condition, Pageable pageable) {
+        BooleanBuilder builder = new BooleanBuilder();
+        builder.and(product.deletedAt.isNull());
+        builder.and(product.status.eq(ProductStatus.ON_SALE));
+        builder.and(product.displayYn.eq("Y"));
+
+        if (condition.keyword() != null && !condition.keyword().isBlank()) {
+            builder.and(product.name.containsIgnoreCase(condition.keyword()));
+        }
+        if (condition.brandId() != null) {
+            builder.and(product.brand.id.eq(condition.brandId()));
+        }
+
+        // MV 기반: summary 테이블의 like_count를 사용하여 정렬
+        NumberExpression<Integer> mvLikeCount = productLikeSummary.likeCount.coalesce(0);
+
+        OrderSpecifier<?> orderSpecifier = switch (condition.sort()) {
+            case PRICE_ASC -> product.price.asc();
+            case LIKE_DESC -> mvLikeCount.desc();
+            default -> product.createdAt.desc();
+        };
+
+        JPAQuery<Product> query = queryFactory
+                .selectFrom(product)
+                .join(product.brand, brand).fetchJoin()
+                .leftJoin(productLikeSummary)
+                .on(productLikeSummary.productId.eq(product.id))
                 .where(builder)
                 .orderBy(orderSpecifier)
                 .offset(pageable.getOffset())

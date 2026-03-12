@@ -57,4 +57,14 @@ public class Brand extends BaseEntity {
     public boolean isActive() {
         return this.status == BrandStatus.ACTIVE;
     }
+
+    /**
+     * 캐시 복원용 팩토리 메서드.
+     * 캐시에 저장된 최소한의 브랜드 정보로 도메인 객체를 복원한다.
+     */
+    public static Brand restoreFromCache(Long id, String name) {
+        Brand brand = new Brand(name, "");
+        brand.restoreBase(id, null);
+        return brand;
+    }
 }

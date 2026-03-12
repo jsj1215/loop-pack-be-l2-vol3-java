@@ -6,23 +6,33 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.ConstraintMode;
 import jakarta.persistence.FetchType;
+import jakarta.persistence.ForeignKey;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.Transient;
 import lombok.Getter;
 
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
 @Getter
 @Entity
-@Table(name = "product")
+@Table(name = "product", indexes = {
+        @Index(name = "idx_product_brand_id", columnList = "brand_id"),
+        @Index(name = "idx_product_status_display_like", columnList = "status, display_yn, like_count"),
+        @Index(name = "idx_product_status_display_created", columnList = "status, display_yn, created_at"),
+        @Index(name = "idx_product_status_display_price", columnList = "status, display_yn, price")
+})
 public class Product extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "brand_id", nullable = false)
+    @JoinColumn(name = "brand_id", nullable = false,
+            foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT))
     private Brand brand;
 
     @Column(name = "name", nullable = false)
@@ -93,6 +103,21 @@ public class Product extends BaseEntity {
             case AMOUNT -> price - marginValue;
             case RATE -> price - (price * marginValue / 100);
         };
+    }
+
+    /**
+     * 캐시 복원용 팩토리 메서드.
+     * Infrastructure 레이어에서 Reflection 없이 도메인 객체를 복원할 수 있도록 한다.
+     */
+    public static Product restoreFromCache(Long id, Brand brand, String name, int price, int supplyPrice,
+                                           int discountPrice, int shippingFee, int likeCount,
+                                           String description, MarginType marginType, ProductStatus status,
+                                           String displayYn, List<ProductOption> options, ZonedDateTime createdAt) {
+        Product product = new Product(brand, name, price, supplyPrice, discountPrice,
+                shippingFee, description, marginType, status, displayYn, options);
+        product.likeCount = likeCount;
+        product.restoreBase(id, createdAt);
+        return product;
     }
 
     public void updateInfo(String name, int price, int supplyPrice, int discountPrice,

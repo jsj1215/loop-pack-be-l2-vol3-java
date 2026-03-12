@@ -14,6 +14,10 @@ dependencies {
     // security
     implementation("org.springframework.security:spring-security-crypto")
 
+    // cache
+    implementation("org.springframework.boot:spring-boot-starter-cache")
+    implementation("com.github.ben-manes.caffeine:caffeine")
+
     // querydsl
     annotationProcessor("com.querydsl:querydsl-apt::jakarta")
     annotationProcessor("jakarta.persistence:jakarta.persistence-api")

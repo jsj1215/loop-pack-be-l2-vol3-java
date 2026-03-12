@@ -70,4 +70,14 @@ public abstract class BaseEntity {
             this.deletedAt = null;
         }
     }
+
+    /**
+     * 캐시 복원 시 식별자와 생성일시를 설정한다.
+     * JPA 영속성 컨텍스트를 거치지 않고 도메인 객체를 복원할 때 사용한다.
+     */
+    protected void restoreBase(Long id, ZonedDateTime createdAt) {
+        this.id = id;
+        this.createdAt = createdAt;
+        this.updatedAt = createdAt;
+    }
 }

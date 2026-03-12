@@ -4,12 +4,14 @@ import com.loopers.domain.brand.Brand;
 import com.loopers.support.error.CoreException;
 import com.loopers.support.error.ErrorType;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
 
+@Slf4j
 @RequiredArgsConstructor
 @Component
 public class ProductService {
@@ -50,8 +52,21 @@ public class ProductService {
                 .orElseThrow(() -> new CoreException(ErrorType.NOT_FOUND, "상품 옵션을 찾을 수 없습니다."));
     }
 
+    /**
+     * 비정규화(Product.likeCount) 기반 상품 검색.
+     * 좋아요순 정렬 시 Product 테이블의 like_count 컬럼을 직접 사용한다.
+     */
     public Page<Product> search(ProductSearchCondition condition, Pageable pageable) {
         return productRepository.search(condition, pageable);
+    }
+
+    /**
+     * [TEST용] Materialized View(product_like_summary) 기반 상품 검색.
+     * 좋아요순 정렬 시 summary 테이블의 like_count를 LEFT JOIN으로 조회한다.
+     * 비정규화 방식 대비 Product 테이블에 쓰기 부하가 없으나, 갱신 주기만큼 지연이 발생한다.
+     */
+    public Page<Product> searchWithMaterializedView(ProductSearchCondition condition, Pageable pageable) {
+        return productRepository.searchWithMaterializedView(condition, pageable);
     }
 
     public Page<Product> adminSearch(AdminProductSearchCondition condition, Pageable pageable) {
@@ -88,6 +103,17 @@ public class ProductService {
 
     public List<Long> findOptionIdsByBrandId(Long brandId) {
         return productRepository.findOptionIdsByBrandId(brandId);
+    }
+
+    public void incrementLikeCount(Long productId) {
+        productRepository.incrementLikeCount(productId);
+    }
+
+    public void decrementLikeCount(Long productId) {
+        int updatedRows = productRepository.decrementLikeCount(productId);
+        if (updatedRows == 0) {
+            log.warn("좋아요 수 감소 실패: productId={}, likeCount가 이미 0입니다.", productId);
+        }
     }
 
     /**

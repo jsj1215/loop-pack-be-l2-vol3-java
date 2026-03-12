@@ -50,4 +50,13 @@ public class ProductOption extends BaseEntity {
         }
         this.stockQuantity += quantity;
     }
+
+    /**
+     * 캐시 복원용 팩토리 메서드.
+     */
+    public static ProductOption restoreFromCache(Long id, Long productId, String optionName, int stockQuantity) {
+        ProductOption option = new ProductOption(productId, optionName, stockQuantity);
+        option.restoreBase(id, null);
+        return option;
+    }
 }

@@ -6,6 +6,7 @@ import com.loopers.domain.brand.BrandStatus;
 import com.loopers.domain.cart.CartService;
 import com.loopers.domain.product.MarginType;
 import com.loopers.domain.product.Product;
+import com.loopers.domain.product.ProductCacheStore;
 import com.loopers.domain.product.ProductOption;
 import com.loopers.domain.product.ProductService;
 import com.loopers.domain.product.ProductStatus;
@@ -41,6 +42,9 @@ class AdminProductFacadeTest {
 
     @Mock
     private CartService cartService;
+
+    @Mock
+    private ProductCacheStore productCacheStore;
 
     @InjectMocks
     private AdminProductFacade adminProductFacade;
@@ -90,12 +94,37 @@ class AdminProductFacadeTest {
     }
 
     @Nested
+    @DisplayName("상품 수정을 할 때,")
+    class UpdateProduct {
+
+        @Test
+        @DisplayName("상품을 수정하고 상세 캐시를 명시적으로 삭제한다.")
+        void updatesProduct_andEvictsDetailCache() {
+            // given
+            Brand brand = createBrandWithId(1L);
+            Product product = createProductWithId(1L, brand);
+            when(productService.update(eq(1L), anyString(), anyInt(), anyInt(), anyInt(),
+                    anyInt(), anyString(), any(ProductStatus.class), anyString(), anyList()))
+                    .thenReturn(product);
+
+            // when
+            adminProductFacade.updateProduct(1L, "에어맥스2", 110000, 85000, 12000, 3000,
+                    "수정된 설명", ProductStatus.ON_SALE, "Y", List.of());
+
+            // then
+            verify(productService).update(eq(1L), anyString(), anyInt(), anyInt(), anyInt(),
+                    anyInt(), anyString(), any(ProductStatus.class), anyString(), anyList());
+            verify(productCacheStore).evictDetail(1L);
+        }
+    }
+
+    @Nested
     @DisplayName("상품 삭제를 할 때,")
     class DeleteProduct {
 
         @Test
-        @DisplayName("CartService로 장바구니 삭제 후 ProductService로 상품을 삭제한다.")
-        void deletesCartThenProduct() {
+        @DisplayName("장바구니 삭제 → 상품 삭제 → 상세 캐시 삭제 순으로 처리한다.")
+        void deletesCartThenProduct_andEvictsDetailCache() {
             // given
             when(productService.findOptionIdsByProductId(1L)).thenReturn(List.of(10L, 20L));
 
@@ -105,6 +134,7 @@ class AdminProductFacadeTest {
             // then
             verify(cartService).deleteByProductOptionIds(List.of(10L, 20L));
             verify(productService).softDelete(1L);
+            verify(productCacheStore).evictDetail(1L);
         }
     }
 }

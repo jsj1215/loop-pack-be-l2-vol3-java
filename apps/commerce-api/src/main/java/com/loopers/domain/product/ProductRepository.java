@@ -24,6 +24,12 @@ public interface ProductRepository {
 
     Page<Product> search(ProductSearchCondition condition, Pageable pageable);
 
+    /**
+     * Materialized View(product_like_summary) 기반 상품 검색.
+     * 좋아요 수를 summary 테이블 JOIN으로 조회하며, 좋아요순 정렬 시 summary 테이블의 like_count를 사용한다.
+     */
+    Page<Product> searchWithMaterializedView(ProductSearchCondition condition, Pageable pageable);
+
     Page<Product> adminSearch(AdminProductSearchCondition condition, Pageable pageable);
 
     void softDelete(Long productId);
