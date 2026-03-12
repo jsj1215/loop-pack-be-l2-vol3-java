@@ -184,6 +184,111 @@ class LikeConcurrencyTest {
         }
     }
 
+    @DisplayName("같은 회원이 동시에 같은 상품에 좋아요를 중복 요청할 때,")
+    @Nested
+    class ConcurrentLikeBySameMember {
+
+        @Test
+        @DisplayName("하나만 성공하고, likeCount가 1이 된다. (멱등성)")
+        void onlyOneLikeSucceeds_whenConcurrentLikeBySameMember() throws InterruptedException {
+            // given - 같은 회원이 동시에 좋아요 요청
+            // *테스트 시나리오: 같은 회원이 동시에 5번 좋아요하면? -> likeCount=1 (멱등성 보장)
+            int threadCount = 5;
+            Product product = createProduct();
+            Long memberId = 1L;
+
+            ExecutorService executorService = Executors.newFixedThreadPool(threadCount);
+            CountDownLatch readyLatch = new CountDownLatch(threadCount);
+            CountDownLatch startLatch = new CountDownLatch(1);
+            CountDownLatch doneLatch = new CountDownLatch(threadCount);
+
+            AtomicInteger successCount = new AtomicInteger(0);
+            AtomicInteger failCount = new AtomicInteger(0);
+
+            // when - 같은 회원이 동시에 좋아요 요청
+            for (int i = 0; i < threadCount; i++) {
+                executorService.execute(() -> {
+                    try {
+                        readyLatch.countDown();
+                        startLatch.await();
+                        productFacade.like(memberId, product.getId());
+                        successCount.incrementAndGet();
+                    } catch (Exception e) {
+                        failCount.incrementAndGet();
+                    } finally {
+                        doneLatch.countDown();
+                    }
+                });
+            }
+
+            readyLatch.await();
+            startLatch.countDown();
+            doneLatch.await();
+            executorService.shutdown();
+
+            // then - 성공/실패 합계가 threadCount이고, likeCount는 정확히 1
+            Product updatedProduct = productService.findById(product.getId());
+
+            assertAll(
+                    () -> assertThat(successCount.get() + failCount.get()).isEqualTo(threadCount),
+                    () -> assertThat(updatedProduct.getLikeCount()).isEqualTo(1)
+            );
+        }
+    }
+
+    @DisplayName("같은 회원이 동시에 같은 상품에 좋아요 취소를 중복 요청할 때,")
+    @Nested
+    class ConcurrentUnlikeBySameMember {
+
+        @Test
+        @DisplayName("하나만 성공하고, likeCount가 0이 된다. (멱등성)")
+        void onlyOneUnlikeSucceeds_whenConcurrentUnlikeBySameMember() throws InterruptedException {
+            // given - 같은 회원이 좋아요한 상태에서 동시에 취소 요청
+            // *테스트 시나리오: 같은 회원이 동시에 5번 좋아요 취소하면? -> likeCount=0 (멱등성 보장)
+            int threadCount = 5;
+            Product product = createProduct();
+            Long memberId = 1L;
+            productFacade.like(memberId, product.getId());
+
+            ExecutorService executorService = Executors.newFixedThreadPool(threadCount);
+            CountDownLatch readyLatch = new CountDownLatch(threadCount);
+            CountDownLatch startLatch = new CountDownLatch(1);
+            CountDownLatch doneLatch = new CountDownLatch(threadCount);
+
+            AtomicInteger successCount = new AtomicInteger(0);
+            AtomicInteger failCount = new AtomicInteger(0);
+
+            // when - 같은 회원이 동시에 좋아요 취소 요청
+            for (int i = 0; i < threadCount; i++) {
+                executorService.execute(() -> {
+                    try {
+                        readyLatch.countDown();
+                        startLatch.await();
+                        productFacade.unlike(memberId, product.getId());
+                        successCount.incrementAndGet();
+                    } catch (Exception e) {
+                        failCount.incrementAndGet();
+                    } finally {
+                        doneLatch.countDown();
+                    }
+                });
+            }
+
+            readyLatch.await();
+            startLatch.countDown();
+            doneLatch.await();
+            executorService.shutdown();
+
+            // then - 성공/실패 합계가 threadCount이고, likeCount는 정확히 0
+            Product updatedProduct = productService.findById(product.getId());
+
+            assertAll(
+                    () -> assertThat(successCount.get() + failCount.get()).isEqualTo(threadCount),
+                    () -> assertThat(updatedProduct.getLikeCount()).isEqualTo(0)
+            );
+        }
+    }
+
     @DisplayName("서로 다른 회원이 동시에 좋아요와 좋아요 취소를 혼합 요청할 때,")
     @Nested
     class ConcurrentLikeAndUnlikeMixed {
@@ -210,6 +315,7 @@ class LikeConcurrencyTest {
             CountDownLatch doneLatch = new CountDownLatch(threadCount); // 모든 스레드가 끝났는지 확인 (값: 10)
 
             AtomicInteger successCount = new AtomicInteger(0); // 멀티스레드 환경에서 안전한 성공 카운터
+            AtomicInteger failCount = new AtomicInteger(0); // 멀티스레드 환경에서 안전한 실패 카운터
 
             // when - 회원 1~5: unlike (좋아요 취소)
             for (int i = 1; i <= unlikeCount; i++) {
@@ -222,7 +328,7 @@ class LikeConcurrencyTest {
                         productFacade.unlike(memberId, product.getId()); // 좋아요 취소 (Atomic UPDATE)
                         successCount.incrementAndGet(); // 성공 카운트 +1
                     } catch (Exception e) {
-                        // unexpected
+                        failCount.incrementAndGet(); // 실패 카운트 +1
                     } finally {
                         doneLatch.countDown(); // "나 끝났어!" (성공이든 실패든 반드시 실행)
                     }
@@ -240,7 +346,7 @@ class LikeConcurrencyTest {
                         productFacade.like(memberId, product.getId()); // 좋아요 (Atomic UPDATE)
                         successCount.incrementAndGet(); // 성공 카운트 +1
                     } catch (Exception e) {
-                        // unexpected
+                        failCount.incrementAndGet(); // 실패 카운트 +1
                     } finally {
                         doneLatch.countDown(); // "나 끝났어!" (성공이든 실패든 반드시 실행)
                     }
@@ -258,6 +364,7 @@ class LikeConcurrencyTest {
             int expectedLikeCount = likeCount; // 5 - 5 + 5 = 5
 
             assertAll(
+                    () -> assertThat(failCount.get()).isEqualTo(0),
                     () -> assertThat(successCount.get()).isEqualTo(threadCount),
                     () -> assertThat(updatedProduct.getLikeCount()).isEqualTo(expectedLikeCount)
             );

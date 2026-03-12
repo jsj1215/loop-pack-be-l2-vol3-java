@@ -1,7 +1,6 @@
 package com.loopers.domain.like;
 
 import com.loopers.domain.product.Product;
-import com.loopers.domain.product.ProductRepository;
 import com.loopers.support.error.CoreException;
 import com.loopers.support.error.ErrorType;
 import org.junit.jupiter.api.DisplayName;
@@ -35,7 +34,10 @@ import static org.mockito.Mockito.when;
  *
  * 테스트 대상: LikeService
  * 테스트 유형: 단위 테스트 (Mock 사용)
- * 테스트 더블: Mock (LikeRepository, ProductRepository)
+ * 테스트 더블: Mock (LikeRepository)
+ *
+ * LikeService는 Like 엔티티의 상태 전환만 담당한다.
+ * 상품 존재 여부 확인, likeCount 증감은 Facade에서 처리하므로 이 테스트에서는 검증하지 않는다.
  */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("LikeService 단위 테스트")
@@ -43,9 +45,6 @@ class LikeServiceTest {
 
     @Mock
     private LikeRepository likeRepository;
-
-    @Mock
-    private ProductRepository productRepository;
 
     @InjectMocks
     private LikeService likeService;
@@ -74,82 +73,53 @@ class LikeServiceTest {
     class LikeAction {
 
         @Test
-        @DisplayName("좋아요 기록이 없으면 새로 생성한다.")
+        @DisplayName("좋아요 기록이 없으면 새로 생성하고 true를 반환한다.")
         void createsNewLike_whenNoExistingRecord() {
             // given
-            Product product = createProduct();
-            when(productRepository.findById(PRODUCT_ID)).thenReturn(Optional.of(product));
             when(likeRepository.findByMemberIdAndProductId(MEMBER_ID, PRODUCT_ID)).thenReturn(Optional.empty());
             when(likeRepository.save(any(Like.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
             // when
-            Like result = likeService.like(MEMBER_ID, PRODUCT_ID);
+            boolean result = likeService.like(MEMBER_ID, PRODUCT_ID);
 
             // then
             assertAll(
-                    () -> assertThat(result.getMemberId()).isEqualTo(MEMBER_ID),
-                    () -> assertThat(result.getProductId()).isEqualTo(PRODUCT_ID),
-                    () -> assertThat(result.isLiked()).isTrue(),
-                    () -> verify(likeRepository, times(1)).save(any(Like.class)),
-                    () -> verify(productRepository).incrementLikeCount(PRODUCT_ID));
+                    () -> assertThat(result).isTrue(),
+                    () -> verify(likeRepository, times(1)).save(any(Like.class)));
         }
 
         @Test
-        @DisplayName("좋아요 취소 상태(N)에서 좋아요하면 Y로 전환된다.")
+        @DisplayName("좋아요 취소 상태(N)에서 좋아요하면 Y로 전환하고 true를 반환한다.")
         void changesLikeYnToY_whenPreviouslyUnliked() {
             // given
-            Product product = createProduct();
             Like existingLike = createLikeWithId(1L, MEMBER_ID, PRODUCT_ID, "N");
 
-            when(productRepository.findById(PRODUCT_ID)).thenReturn(Optional.of(product));
             when(likeRepository.findByMemberIdAndProductId(MEMBER_ID, PRODUCT_ID)).thenReturn(Optional.of(existingLike));
             when(likeRepository.save(any(Like.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
             // when
-            Like result = likeService.like(MEMBER_ID, PRODUCT_ID);
+            boolean result = likeService.like(MEMBER_ID, PRODUCT_ID);
 
             // then
             assertAll(
-                    () -> assertThat(result.isLiked()).isTrue(),
-                    () -> verify(likeRepository, times(1)).save(any(Like.class)),
-                    () -> verify(productRepository).incrementLikeCount(PRODUCT_ID));
+                    () -> assertThat(result).isTrue(),
+                    () -> verify(likeRepository, times(1)).save(any(Like.class)));
         }
 
         @Test
-        @DisplayName("이미 좋아요 상태(Y)이면 아무것도 하지 않는다. (멱등성)")
+        @DisplayName("이미 좋아요 상태(Y)이면 아무것도 하지 않고 false를 반환한다. (멱등성)")
         void doesNothing_whenAlreadyLiked() {
             // given
-            Product product = createProduct();
             Like existingLike = createLikeWithId(1L, MEMBER_ID, PRODUCT_ID, "Y");
 
-            when(productRepository.findById(PRODUCT_ID)).thenReturn(Optional.of(product));
             when(likeRepository.findByMemberIdAndProductId(MEMBER_ID, PRODUCT_ID)).thenReturn(Optional.of(existingLike));
 
             // when
-            Like result = likeService.like(MEMBER_ID, PRODUCT_ID);
+            boolean result = likeService.like(MEMBER_ID, PRODUCT_ID);
 
             // then
             assertAll(
-                    () -> assertThat(result.isLiked()).isTrue(),
-                    () -> verify(likeRepository, never()).save(any(Like.class)),
-                    () -> verify(productRepository, never()).incrementLikeCount(any()));
-        }
-
-        @Test
-        @DisplayName("상품이 존재하지 않으면 NOT_FOUND 예외가 발생한다.")
-        void throwsNotFound_whenProductNotExists() {
-            // given
-            when(productRepository.findById(PRODUCT_ID)).thenReturn(Optional.empty());
-
-            // when
-            CoreException exception = assertThrows(CoreException.class,
-                    () -> likeService.like(MEMBER_ID, PRODUCT_ID));
-
-            // then
-            assertAll(
-                    () -> assertThat(exception.getErrorType()).isEqualTo(ErrorType.NOT_FOUND),
-                    () -> assertThat(exception.getMessage()).contains("상품"),
-                    () -> verify(likeRepository, never()).findByMemberIdAndProductId(any(), any()),
+                    () -> assertThat(result).isFalse(),
                     () -> verify(likeRepository, never()).save(any(Like.class)));
         }
     }
@@ -159,7 +129,7 @@ class LikeServiceTest {
     class UnlikeAction {
 
         @Test
-        @DisplayName("좋아요 상태(Y)에서 취소하면 N으로 전환된다.")
+        @DisplayName("좋아요 상태(Y)에서 취소하면 N으로 전환하고 true를 반환한다.")
         void changesLikeYnToN_whenCurrentlyLiked() {
             // given
             Like existingLike = createLikeWithId(1L, MEMBER_ID, PRODUCT_ID, "Y");
@@ -168,17 +138,16 @@ class LikeServiceTest {
             when(likeRepository.save(any(Like.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
             // when
-            Like result = likeService.unlike(MEMBER_ID, PRODUCT_ID);
+            boolean result = likeService.unlike(MEMBER_ID, PRODUCT_ID);
 
             // then
             assertAll(
-                    () -> assertThat(result.isLiked()).isFalse(),
-                    () -> verify(likeRepository, times(1)).save(any(Like.class)),
-                    () -> verify(productRepository).decrementLikeCount(PRODUCT_ID));
+                    () -> assertThat(result).isTrue(),
+                    () -> verify(likeRepository, times(1)).save(any(Like.class)));
         }
 
         @Test
-        @DisplayName("이미 좋아요 취소 상태(N)이면 아무것도 하지 않는다. (멱등성)")
+        @DisplayName("이미 좋아요 취소 상태(N)이면 아무것도 하지 않고 false를 반환한다. (멱등성)")
         void doesNothing_whenAlreadyUnliked() {
             // given
             Like existingLike = createLikeWithId(1L, MEMBER_ID, PRODUCT_ID, "N");
@@ -186,13 +155,12 @@ class LikeServiceTest {
             when(likeRepository.findByMemberIdAndProductId(MEMBER_ID, PRODUCT_ID)).thenReturn(Optional.of(existingLike));
 
             // when
-            Like result = likeService.unlike(MEMBER_ID, PRODUCT_ID);
+            boolean result = likeService.unlike(MEMBER_ID, PRODUCT_ID);
 
             // then
             assertAll(
-                    () -> assertThat(result.isLiked()).isFalse(),
-                    () -> verify(likeRepository, never()).save(any(Like.class)),
-                    () -> verify(productRepository, never()).decrementLikeCount(any()));
+                    () -> assertThat(result).isFalse(),
+                    () -> verify(likeRepository, never()).save(any(Like.class)));
         }
 
         @Test

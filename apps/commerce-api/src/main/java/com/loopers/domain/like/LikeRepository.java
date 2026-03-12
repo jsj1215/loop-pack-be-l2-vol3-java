@@ -13,4 +13,6 @@ public interface LikeRepository {
     Page<Product> findLikedProductsByMemberId(Long memberId, Pageable pageable);
 
     Like save(Like like);
+
+    void refreshLikeSummary();
 }

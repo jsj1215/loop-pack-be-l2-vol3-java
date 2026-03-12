@@ -26,6 +26,7 @@ import static java.util.stream.Collectors.groupingBy;
 public class LikeRepositoryImpl implements LikeRepository {
 
     private final LikeJpaRepository likeJpaRepository;
+    private final ProductLikeSummaryJpaRepository productLikeSummaryJpaRepository;
     private final ProductOptionJpaRepository productOptionJpaRepository;
     private final JPAQueryFactory queryFactory;
 
@@ -79,5 +80,10 @@ public class LikeRepositoryImpl implements LikeRepository {
     @Override
     public Like save(Like like) {
         return likeJpaRepository.save(like);
+    }
+
+    @Override
+    public void refreshLikeSummary() {
+        productLikeSummaryJpaRepository.refreshAll();
     }
 }

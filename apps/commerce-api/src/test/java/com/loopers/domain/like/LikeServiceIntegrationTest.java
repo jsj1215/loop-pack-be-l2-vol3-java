@@ -10,7 +10,6 @@ import com.loopers.domain.product.ProductService;
 import com.loopers.support.error.CoreException;
 import com.loopers.support.error.ErrorType;
 import com.loopers.utils.DatabaseCleanUp;
-import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -22,7 +21,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
@@ -31,6 +29,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * 테스트 대상: LikeService (Domain Layer)
  * 테스트 유형: 통합 테스트 (Integration Test)
  * 테스트 범위: Service → Repository → Database
+ *
+ * 주의: LikeService는 Like 엔티티의 상태 전환만 담당한다.
+ * likeCount 증감은 Facade에서 처리하므로 이 테스트에서는 검증하지 않는다.
  */
 @SpringBootTest
 @Transactional
@@ -44,9 +45,6 @@ class LikeServiceIntegrationTest {
 
     @Autowired
     private BrandService brandService;
-
-    @Autowired
-    private EntityManager entityManager;
 
     @Autowired
     private DatabaseCleanUp databaseCleanUp;
@@ -69,64 +67,32 @@ class LikeServiceIntegrationTest {
     class LikeAction {
 
         @Test
-        @DisplayName("좋아요를 추가하면, likeCount가 증가한다.")
-        void incrementsLikeCount_whenLike() {
+        @DisplayName("신규 좋아요를 추가하면, true를 반환한다.")
+        void returnsTrue_whenNewLike() {
             // given
             Product product = createProduct();
             Long memberId = 1L;
 
             // when
-            Like like = likeService.like(memberId, product.getId());
+            boolean changed = likeService.like(memberId, product.getId());
 
             // then
-            assertAll(
-                    () -> assertThat(like.getId()).isNotNull(),
-                    () -> assertThat(like.getMemberId()).isEqualTo(memberId),
-                    () -> assertThat(like.getProductId()).isEqualTo(product.getId()),
-                    () -> assertThat(like.isLiked()).isTrue()
-            );
-
-            entityManager.flush();
-            entityManager.clear();
-
-            Product updatedProduct = productService.findById(product.getId());
-            assertThat(updatedProduct.getLikeCount()).isEqualTo(1);
+            assertThat(changed).isTrue();
         }
 
         @Test
-        @DisplayName("이미 좋아요한 상태에서 다시 좋아요하면, 멱등하게 동작한다.")
-        void idempotent_whenAlreadyLiked() {
+        @DisplayName("이미 좋아요한 상태에서 다시 좋아요하면, false를 반환한다. (멱등성)")
+        void returnsFalse_whenAlreadyLiked() {
             // given
             Product product = createProduct();
             Long memberId = 1L;
             likeService.like(memberId, product.getId());
 
             // when
-            Like like = likeService.like(memberId, product.getId());
+            boolean changed = likeService.like(memberId, product.getId());
 
             // then
-            assertThat(like.isLiked()).isTrue();
-
-            entityManager.flush();
-            entityManager.clear();
-
-            Product updatedProduct = productService.findById(product.getId());
-            assertThat(updatedProduct.getLikeCount()).isEqualTo(1);
-        }
-
-        @Test
-        @DisplayName("존재하지 않는 상품에 좋아요하면, NOT_FOUND 예외가 발생한다.")
-        void throwsException_whenProductNotFound() {
-            // given
-            Long memberId = 1L;
-            Long nonExistentProductId = 999L;
-
-            // when
-            CoreException exception = assertThrows(CoreException.class,
-                    () -> likeService.like(memberId, nonExistentProductId));
-
-            // then
-            assertThat(exception.getErrorType()).isEqualTo(ErrorType.NOT_FOUND);
+            assertThat(changed).isFalse();
         }
     }
 
@@ -135,29 +101,23 @@ class LikeServiceIntegrationTest {
     class UnlikeAction {
 
         @Test
-        @DisplayName("좋아요를 취소하면, likeCount가 감소한다.")
-        void decrementsLikeCount_whenUnlike() {
+        @DisplayName("좋아요를 취소하면, true를 반환한다.")
+        void returnsTrue_whenUnlike() {
             // given
             Product product = createProduct();
             Long memberId = 1L;
             likeService.like(memberId, product.getId());
 
             // when
-            Like like = likeService.unlike(memberId, product.getId());
+            boolean changed = likeService.unlike(memberId, product.getId());
 
             // then
-            assertThat(like.isLiked()).isFalse();
-
-            entityManager.flush();
-            entityManager.clear();
-
-            Product updatedProduct = productService.findById(product.getId());
-            assertThat(updatedProduct.getLikeCount()).isEqualTo(0);
+            assertThat(changed).isTrue();
         }
 
         @Test
-        @DisplayName("이미 취소된 상태에서 다시 취소하면, 멱등하게 동작한다.")
-        void idempotent_whenAlreadyUnliked() {
+        @DisplayName("이미 취소된 상태에서 다시 취소하면, false를 반환한다. (멱등성)")
+        void returnsFalse_whenAlreadyUnliked() {
             // given
             Product product = createProduct();
             Long memberId = 1L;
@@ -165,16 +125,56 @@ class LikeServiceIntegrationTest {
             likeService.unlike(memberId, product.getId());
 
             // when
-            Like like = likeService.unlike(memberId, product.getId());
+            boolean changed = likeService.unlike(memberId, product.getId());
 
             // then
-            assertThat(like.isLiked()).isFalse();
+            assertThat(changed).isFalse();
+        }
 
-            entityManager.flush();
-            entityManager.clear();
+        @Test
+        @DisplayName("좋아요 기록이 없는 상태에서 취소하면, BAD_REQUEST 예외가 발생한다.")
+        void throwsException_whenNoLikeRecord() {
+            // given
+            Product product = createProduct();
+            Long memberId = 1L;
 
-            Product updatedProduct = productService.findById(product.getId());
-            assertThat(updatedProduct.getLikeCount()).isEqualTo(0);
+            // when
+            CoreException exception = assertThrows(CoreException.class,
+                    () -> likeService.unlike(memberId, product.getId()));
+
+            // then
+            assertThat(exception.getErrorType()).isEqualTo(ErrorType.BAD_REQUEST);
+        }
+    }
+
+    @DisplayName("좋아요 순차 전환 시,")
+    @Nested
+    class LikeStateTransition {
+
+        @Test
+        @DisplayName("좋아요 → 취소 → 다시 좋아요하면, 모두 true를 반환한다.")
+        void allTransitionsReturnTrue() {
+            // given
+            Product product = createProduct();
+            Long memberId = 1L;
+
+            // when & then
+            assertThat(likeService.like(memberId, product.getId())).isTrue();
+            assertThat(likeService.unlike(memberId, product.getId())).isTrue();
+            assertThat(likeService.like(memberId, product.getId())).isTrue();
+        }
+
+        @Test
+        @DisplayName("여러 회원이 좋아요하면, 모두 true를 반환한다.")
+        void allLikesReturnTrue_whenMultipleMembers() {
+            // given
+            Product product = createProduct();
+            int memberCount = 5;
+
+            // when & then
+            for (long memberId = 1; memberId <= memberCount; memberId++) {
+                assertThat(likeService.like(memberId, product.getId())).isTrue();
+            }
         }
     }
 }
