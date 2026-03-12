@@ -29,7 +29,11 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/api/v1/members/signup",
                         "/api/v1/brands/**",
                         "/api/v1/products",
+                        "/api/v1/products/local-cache",
                         "/api/v1/products/{id}",
+                        "/api/v1/products/{id}/local-cache",
+                        "/api/v1/products/no-cache",
+                        "/api/v1/products/{id}/no-cache",
                         "/api/v1/examples/**"
                 );
 
