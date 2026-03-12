@@ -36,7 +36,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -155,7 +155,7 @@ class ProductV1ControllerTest {
     }
 
     @Nested
-    @DisplayName("PUT /api/v1/products/{productId}/likes")
+    @DisplayName("DELETE /api/v1/products/{productId}/likes")
     class Unlike {
 
         @Test
@@ -167,7 +167,7 @@ class ProductV1ControllerTest {
             when(memberService.authenticate("testuser1", "Password1!")).thenReturn(mockMember);
 
             // when & then
-            mockMvc.perform(put("/api/v1/products/1/likes")
+            mockMvc.perform(delete("/api/v1/products/1/likes")
                     .header(HEADER_LOGIN_ID, "testuser1")
                     .header(HEADER_LOGIN_PW, "Password1!"))
                 .andExpect(status().isOk());

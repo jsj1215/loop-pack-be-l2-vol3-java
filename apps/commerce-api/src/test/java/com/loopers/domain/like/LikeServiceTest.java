@@ -182,6 +182,21 @@ class LikeServiceTest {
     }
 
     @Nested
+    @DisplayName("MV를 갱신할 때,")
+    class RefreshLikeSummary {
+
+        @Test
+        @DisplayName("likeRepository.refreshLikeSummary가 호출된다.")
+        void delegatesToRepository() {
+            // given & when
+            likeService.refreshLikeSummary();
+
+            // then
+            verify(likeRepository, times(1)).refreshLikeSummary();
+        }
+    }
+
+    @Nested
     @DisplayName("좋아요 상품 목록을 조회할 때,")
     class GetLikedProducts {
 

@@ -397,6 +397,55 @@ class ProductServiceTest {
     }
 
     @Nested
+    @DisplayName("좋아요 수를 증가시킬 때,")
+    class IncrementLikeCount {
+
+        @Test
+        @DisplayName("productRepository.incrementLikeCount가 호출된다.")
+        void callsRepositoryIncrementLikeCount() {
+            // given
+            when(productRepository.incrementLikeCount(1L)).thenReturn(1);
+
+            // when
+            productService.incrementLikeCount(1L);
+
+            // then
+            verify(productRepository, times(1)).incrementLikeCount(1L);
+        }
+    }
+
+    @Nested
+    @DisplayName("좋아요 수를 감소시킬 때,")
+    class DecrementLikeCount {
+
+        @Test
+        @DisplayName("likeCount가 1 이상이면 감소에 성공한다.")
+        void decrementsSuccessfully_whenLikeCountAboveZero() {
+            // given
+            when(productRepository.decrementLikeCount(1L)).thenReturn(1);
+
+            // when
+            productService.decrementLikeCount(1L);
+
+            // then
+            verify(productRepository, times(1)).decrementLikeCount(1L);
+        }
+
+        @Test
+        @DisplayName("likeCount가 이미 0이면 감소하지 않고 경고 로그를 남긴다.")
+        void doesNotDecrement_whenLikeCountIsZero() {
+            // given
+            when(productRepository.decrementLikeCount(1L)).thenReturn(0);
+
+            // when
+            productService.decrementLikeCount(1L);
+
+            // then
+            verify(productRepository, times(1)).decrementLikeCount(1L);
+        }
+    }
+
+    @Nested
     @DisplayName("재고를 차감할 때,")
     class DeductStock {
 

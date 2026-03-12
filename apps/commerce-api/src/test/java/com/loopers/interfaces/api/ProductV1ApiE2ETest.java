@@ -238,7 +238,7 @@ class ProductV1ApiE2ETest {
         }
     }
 
-    @DisplayName("PUT /api/v1/products/{productId}/likes")
+    @DisplayName("DELETE /api/v1/products/{productId}/likes")
     @Nested
     class Unlike {
 
@@ -263,12 +263,85 @@ class ProductV1ApiE2ETest {
                     new ParameterizedTypeReference<>() {};
             ResponseEntity<ApiResponse<Void>> response = testRestTemplate.exchange(
                     ENDPOINT_PRODUCTS + "/" + product.getId() + "/likes",
-                    HttpMethod.PUT,
+                    HttpMethod.DELETE,
                     new HttpEntity<>(memberAuthHeaders()),
                     responseType);
 
             // assert
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        }
+    }
+
+    @DisplayName("좋아요 등록/취소 시 likeCount 동기화")
+    @Nested
+    class LikeCountSync {
+
+        @Test
+        @DisplayName("좋아요 등록 후 상품 조회 시, likeCount가 1 증가한다.")
+        void likeCountIncreases_afterLike() {
+            // arrange
+            saveMember();
+            Brand brand = saveActiveBrand();
+            Product product = saveProduct(brand);
+            saveProductOption(product.getId());
+
+            // act - 좋아요
+            testRestTemplate.exchange(
+                    ENDPOINT_PRODUCTS + "/" + product.getId() + "/likes",
+                    HttpMethod.POST,
+                    new HttpEntity<>(memberAuthHeaders()),
+                    new ParameterizedTypeReference<ApiResponse<Void>>() {});
+
+            // assert - 상품 조회하여 likeCount 확인 (no-cache로 DB 직접 조회)
+            ParameterizedTypeReference<ApiResponse<ProductV1Dto.ProductDetailResponse>> responseType =
+                    new ParameterizedTypeReference<>() {};
+            ResponseEntity<ApiResponse<ProductV1Dto.ProductDetailResponse>> response = testRestTemplate.exchange(
+                    ENDPOINT_PRODUCTS + "/" + product.getId() + "/no-cache",
+                    HttpMethod.GET,
+                    null,
+                    responseType);
+
+            assertAll(
+                    () -> assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK),
+                    () -> assertThat(response.getBody()).isNotNull(),
+                    () -> assertThat(response.getBody().data().likeCount()).isEqualTo(1));
+        }
+
+        @Test
+        @DisplayName("좋아요 등록 후 취소하면, likeCount가 0으로 돌아온다.")
+        void likeCountReturnsToZero_afterLikeAndUnlike() {
+            // arrange
+            saveMember();
+            Brand brand = saveActiveBrand();
+            Product product = saveProduct(brand);
+            saveProductOption(product.getId());
+
+            // act - 좋아요 → 취소
+            testRestTemplate.exchange(
+                    ENDPOINT_PRODUCTS + "/" + product.getId() + "/likes",
+                    HttpMethod.POST,
+                    new HttpEntity<>(memberAuthHeaders()),
+                    new ParameterizedTypeReference<ApiResponse<Void>>() {});
+
+            testRestTemplate.exchange(
+                    ENDPOINT_PRODUCTS + "/" + product.getId() + "/likes",
+                    HttpMethod.DELETE,
+                    new HttpEntity<>(memberAuthHeaders()),
+                    new ParameterizedTypeReference<ApiResponse<Void>>() {});
+
+            // assert - 상품 조회하여 likeCount 확인 (no-cache로 DB 직접 조회)
+            ParameterizedTypeReference<ApiResponse<ProductV1Dto.ProductDetailResponse>> responseType =
+                    new ParameterizedTypeReference<>() {};
+            ResponseEntity<ApiResponse<ProductV1Dto.ProductDetailResponse>> response = testRestTemplate.exchange(
+                    ENDPOINT_PRODUCTS + "/" + product.getId() + "/no-cache",
+                    HttpMethod.GET,
+                    null,
+                    responseType);
+
+            assertAll(
+                    () -> assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK),
+                    () -> assertThat(response.getBody()).isNotNull(),
+                    () -> assertThat(response.getBody().data().likeCount()).isEqualTo(0));
         }
     }
 }

@@ -14,6 +14,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
 
+import jakarta.persistence.EntityManager;
+
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -39,6 +41,9 @@ class ProductServiceIntegrationTest {
 
     @Autowired
     private DatabaseCleanUp databaseCleanUp;
+
+    @Autowired
+    private EntityManager entityManager;
 
     @AfterEach
     void tearDown() {
@@ -163,6 +168,65 @@ class ProductServiceIntegrationTest {
             CoreException exception = assertThrows(CoreException.class,
                     () -> productService.findById(savedProduct.getId()));
             assertThat(exception.getErrorType()).isEqualTo(ErrorType.NOT_FOUND);
+        }
+    }
+
+    @DisplayName("좋아요 수를 증감할 때,")
+    @Nested
+    class LikeCount {
+
+        @Test
+        @DisplayName("incrementLikeCount로 좋아요 수가 1 증가한다.")
+        void incrementsLikeCount() {
+            // given
+            Brand brand = createActiveBrand("나이키");
+            Product savedProduct = registerProduct(brand, "에어맥스", 100000, MarginType.RATE, 10, 100);
+
+            // when
+            productService.incrementLikeCount(savedProduct.getId());
+            entityManager.flush();
+            entityManager.clear();
+
+            // then
+            Product product = productService.findById(savedProduct.getId());
+            assertThat(product.getLikeCount()).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("decrementLikeCount로 좋아요 수가 1 감소한다.")
+        void decrementsLikeCount() {
+            // given
+            Brand brand = createActiveBrand("나이키");
+            Product savedProduct = registerProduct(brand, "에어맥스", 100000, MarginType.RATE, 10, 100);
+            productService.incrementLikeCount(savedProduct.getId());
+            entityManager.flush();
+            entityManager.clear();
+
+            // when
+            productService.decrementLikeCount(savedProduct.getId());
+            entityManager.flush();
+            entityManager.clear();
+
+            // then
+            Product product = productService.findById(savedProduct.getId());
+            assertThat(product.getLikeCount()).isEqualTo(0);
+        }
+
+        @Test
+        @DisplayName("likeCount가 0일 때 decrementLikeCount를 호출하면 음수가 되지 않는다.")
+        void doesNotGoNegative_whenLikeCountIsZero() {
+            // given
+            Brand brand = createActiveBrand("나이키");
+            Product savedProduct = registerProduct(brand, "에어맥스", 100000, MarginType.RATE, 10, 100);
+
+            // when
+            productService.decrementLikeCount(savedProduct.getId());
+            entityManager.flush();
+            entityManager.clear();
+
+            // then
+            Product product = productService.findById(savedProduct.getId());
+            assertThat(product.getLikeCount()).isEqualTo(0);
         }
     }
 
