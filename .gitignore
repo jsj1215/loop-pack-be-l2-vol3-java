@@ -47,3 +47,6 @@ out/
 
 ### QueryDSL Generated ###
 **/generated/
+
+### SQL ###
+*.sql

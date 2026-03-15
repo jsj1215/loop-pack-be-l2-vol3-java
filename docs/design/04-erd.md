@@ -309,9 +309,9 @@ erDiagram
 |--------|--------|------|
 | BRAND | status | 브랜드 상태별 조회 (어드민) |
 | PRODUCT | brand_id | 브랜드별 상품 필터링 |
-| PRODUCT | name | 상품명 검색 (keyword) |
-| PRODUCT | status | 상품 상태별 조회 (어드민) |
-| PRODUCT | display_yn | 노출 여부별 조회 (어드민) |
+| PRODUCT | status, display_yn, like_count | 전체 목록 좋아요순 정렬 |
+| PRODUCT | status, display_yn, created_at | 전체 목록 최신순 정렬 |
+| PRODUCT | status, display_yn, price | 전체 목록 가격순 정렬 |
 | PRODUCT_LIKE | member_id, product_id (UNIQUE) | 중복 좋아요 방지 + 조회 |
 | PRODUCT_LIKE | member_id, like_yn | 좋아요한 상품 목록 조회 |
 | CART_ITEM | member_id, product_option_id (UNIQUE) | 중복 장바구니 방지 + 조회 |
