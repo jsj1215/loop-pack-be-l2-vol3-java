@@ -6,6 +6,8 @@ import com.loopers.support.error.ErrorType;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
@@ -37,6 +39,10 @@ public class Order extends BaseEntity {
     @Column(name = "used_points", nullable = false)
     private int usedPoints;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false)
+    private OrderStatus status;
+
     protected Order() {}
 
     private Order(Long memberId, List<OrderItem> orderItems,
@@ -46,6 +52,7 @@ public class Order extends BaseEntity {
         this.discountAmount = discountAmount;
         this.memberCouponId = memberCouponId;
         this.usedPoints = usedPoints;
+        this.status = OrderStatus.PENDING;
 
         if (orderItems != null) {
             for (OrderItem item : orderItems) {
@@ -57,7 +64,14 @@ public class Order extends BaseEntity {
 
     public static Order create(Long memberId, List<OrderItem> items,
                                int discountAmount, Long memberCouponId, int usedPoints) {
+        if (items == null || items.isEmpty()) {
+            throw new CoreException(ErrorType.BAD_REQUEST, "주문 항목은 1개 이상이어야 합니다.");
+        }
         int totalAmount = calculateTotalAmount(items);
+        if (discountAmount + usedPoints > totalAmount) {
+            throw new CoreException(ErrorType.BAD_REQUEST,
+                    "할인 금액과 포인트의 합이 주문 총액을 초과할 수 없습니다.");
+        }
         return new Order(memberId, items, totalAmount, discountAmount,
                 memberCouponId, usedPoints);
     }
@@ -75,6 +89,27 @@ public class Order extends BaseEntity {
     public void validateOwner(Long memberId) {
         if (!this.memberId.equals(memberId)) {
             throw new CoreException(ErrorType.NOT_FOUND, "주문을 찾을 수 없습니다.");
+        }
+    }
+
+    public void markPaid() {
+        validateNotFinalized();
+        this.status = OrderStatus.PAID;
+    }
+
+    public void markFailed() {
+        validateNotFinalized();
+        this.status = OrderStatus.FAILED;
+    }
+
+    public void cancel() {
+        validateNotFinalized();
+        this.status = OrderStatus.CANCELLED;
+    }
+
+    private void validateNotFinalized() {
+        if (this.status == OrderStatus.PAID || this.status == OrderStatus.FAILED || this.status == OrderStatus.CANCELLED) {
+            throw new CoreException(ErrorType.CONFLICT, "이미 처리 완료된 주문입니다.");
         }
     }
 }

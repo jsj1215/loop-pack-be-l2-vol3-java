@@ -26,6 +26,9 @@ public class OrderItem extends BaseEntity {
     @Column(name = "product_id", nullable = false)
     private Long productId;
 
+    @Column(name = "product_option_id", nullable = false)
+    private Long productOptionId;
+
     @Column(name = "brand_id", nullable = false)
     private Long brandId;
 
@@ -52,9 +55,10 @@ public class OrderItem extends BaseEntity {
 
     protected OrderItem() {}
 
-    private OrderItem(Long productId, Long brandId, String productName, String optionName,
+    private OrderItem(Long productId, Long productOptionId, Long brandId, String productName, String optionName,
                       String brandName, int price, int supplyPrice, int shippingFee, int quantity) {
         this.productId = productId;
+        this.productOptionId = productOptionId;
         this.brandId = brandId;
         this.productName = productName;
         this.optionName = optionName;
@@ -68,6 +72,7 @@ public class OrderItem extends BaseEntity {
     public static OrderItem createSnapshot(Product product, ProductOption option, int quantity) {
         return new OrderItem(
                 product.getId(),
+                option.getId(),
                 product.getBrand().getId(),
                 product.getName(),
                 option.getOptionName(),

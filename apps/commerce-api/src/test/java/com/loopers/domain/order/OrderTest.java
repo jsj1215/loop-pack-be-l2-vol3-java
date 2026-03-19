@@ -144,7 +144,8 @@ class OrderTest {
         @DisplayName("일치하는 회원 ID면 예외가 발생하지 않는다.")
         void passes_whenMemberIdMatches() {
             // given
-            Order order = createOrderWithId(1L, 1L, List.of(),
+            Order order = createOrderWithId(1L, 1L,
+                    List.of(createOrderItem(1L, 1L, "상품", "옵션", "브랜드", 100000, 80000, 0, 1)),
                     100000, 0, null, 0);
 
             // when & then
@@ -155,7 +156,8 @@ class OrderTest {
         @DisplayName("일치하지 않는 회원 ID면 NOT_FOUND 예외가 발생한다.")
         void throwsNotFound_whenMemberIdDoesNotMatch() {
             // given
-            Order order = createOrderWithId(1L, 1L, List.of(),
+            Order order = createOrderWithId(1L, 1L,
+                    List.of(createOrderItem(1L, 1L, "상품", "옵션", "브랜드", 100000, 80000, 0, 1)),
                     100000, 0, null, 0);
 
             // when

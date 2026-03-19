@@ -243,7 +243,8 @@ class OrderServiceTest {
             // given
             Long orderId = 1L;
             Long memberId = 1L;
-            Order order = createOrderWithId(orderId, memberId, List.of(),
+            Order order = createOrderWithId(orderId, memberId,
+                    List.of(createOrderItemWithId(1L, 1L, 1L, "상품", "옵션", "브랜드", 100000, 80000, 0, 1)),
                     100000, 0, null, 0);
             when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
 
@@ -278,7 +279,8 @@ class OrderServiceTest {
             Long orderId = 1L;
             Long ownerMemberId = 1L;
             Long otherMemberId = 999L;
-            Order order = createOrderWithId(orderId, ownerMemberId, List.of(),
+            Order order = createOrderWithId(orderId, ownerMemberId,
+                    List.of(createOrderItemWithId(1L, 1L, 1L, "상품", "옵션", "브랜드", 100000, 80000, 0, 1)),
                     100000, 0, null, 0);
             when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
 
