@@ -34,6 +34,58 @@ spring:
   config:
     activate:
       on-profile: local, test
+  cloud:
+    openfeign:
+      client:
+        config:
+          pgClient:
+            connect-timeout: 1000
+            read-timeout: 3000
+
+pg:
+  base-url: http://localhost:8082
+  callback-url:
+    v1: http://localhost:8080/api/v1/payments/callback
+    v2: http://localhost:8080/api/v2/payments/callback
+  timeout:
+    connect: 1000
+    read: 3000
+  executor:
+    pool-size: 10
+
+resilience4j:
+  timelimiter:
+    instances:
+      pgTimeLimiter:
+        timeout-duration: 4s          # 개별 호출 시간 제한 (Feign 3초의 안전망, Retry 포함 전체가 아닌 각 시도 단위)
+        cancel-running-future: true   # 타임아웃 시 실행 중인 Future를 취소
+  retry:
+    instances:
+      pgRetry:
+        max-attempts: 3               # 최대 3회 시도 (첫 시도 + 재시도 2회)
+        wait-duration: 500ms          # 재시도 간격 500ms (Fixed)
+        retry-exceptions:             # 재시도할 예외 (연결 실패, 5xx 서버 에러)
+          - feign.RetryableException
+          - feign.FeignException$InternalServerError
+          - feign.FeignException$BadGateway
+          - feign.FeignException$ServiceUnavailable
+          - feign.FeignException$GatewayTimeout
+        fail-after-max-attempts: true # 최대 시도 후 실패 시 예외를 던져 fallback으로 연결
+  circuitbreaker:
+    instances:
+      pgCircuit:
+        sliding-window-size: 10                           # 최근 10건 기준
+        minimum-number-of-calls: 10                      # 최소 10건 이후 실패율 평가 시작
+        failure-rate-threshold: 50                        # 실패율 50% -> OPEN
+        wait-duration-in-open-state: 10s                  # OPEN 10초 유지
+        permitted-number-of-calls-in-half-open-state: 3   # HALF_OPEN에서 3건 시도하여 복구 판정
+        slow-call-duration-threshold: 3s                  # 3초 초과 = 느린 호출 (Feign read timeout과 동일)
+        slow-call-rate-threshold: 50                      # 느린 호출 비율 50% -> OPEN
+        ignore-exceptions:                                # 4xx 비즈니스 에러는 서킷 실패율에서 제외
+          - feign.FeignException$BadRequest               # 400: 잘못된 요청 (잘못된 카드번호 등)
+          - feign.FeignException$Forbidden                # 403: 권한 없음
+          - feign.FeignException$NotFound                 # 404: 존재하지 않는 리소스
+          - feign.FeignException$Conflict                 # 409: 중복 요청
 
 ---
 spring:
