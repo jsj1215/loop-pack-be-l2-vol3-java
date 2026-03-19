@@ -5,6 +5,7 @@ import com.loopers.application.order.OrderDetailInfo;
 import com.loopers.application.order.OrderFacade;
 import com.loopers.application.order.OrderInfo;
 import com.loopers.application.order.OrderItemInfo;
+import com.loopers.application.order.OrderPaymentFacade;
 import com.loopers.config.WebMvcConfig;
 import com.loopers.domain.auth.LdapAuthService;
 import com.loopers.domain.member.Member;
@@ -60,6 +61,9 @@ class OrderV1ControllerTest {
     private OrderFacade orderFacade;
 
     @MockBean
+    private OrderPaymentFacade orderPaymentFacade;
+
+    @MockBean
     private MemberService memberService;
 
     @MockBean
@@ -85,12 +89,12 @@ class OrderV1ControllerTest {
             OrderDetailInfo orderDetailInfo = new OrderDetailInfo(
                     1L, 100000, 0, 0, 100000, List.of(orderItemInfo), now);
 
-            when(orderFacade.createOrder(anyLong(), any(), any(), anyInt(), any()))
+            when(orderPaymentFacade.createOrder(anyLong(), any(), any(), anyInt(), any(), any(), any()))
                 .thenReturn(orderDetailInfo);
 
             OrderV1Dto.CreateOrderRequest request = new OrderV1Dto.CreateOrderRequest(
                     List.of(new OrderV1Dto.OrderItemRequest(1L, 1L, 2)),
-                    null, 0, null);
+                    null, 0, null, "SAMSUNG", "1234-5678-9012-3456");
 
             // when & then
             mockMvc.perform(post("/api/v1/orders")
@@ -110,7 +114,7 @@ class OrderV1ControllerTest {
             // given
             OrderV1Dto.CreateOrderRequest request = new OrderV1Dto.CreateOrderRequest(
                     List.of(new OrderV1Dto.OrderItemRequest(1L, 1L, 2)),
-                    null, 0, null);
+                    null, 0, null, "SAMSUNG", "1234-5678-9012-3456");
 
             // when & then
             mockMvc.perform(post("/api/v1/orders")
@@ -127,12 +131,12 @@ class OrderV1ControllerTest {
             when(mockMember.getId()).thenReturn(1L);
             when(memberService.authenticate("testuser1", "Password1!")).thenReturn(mockMember);
 
-            when(orderFacade.createOrder(anyLong(), any(), any(), anyInt(), any()))
+            when(orderPaymentFacade.createOrder(anyLong(), any(), any(), anyInt(), any(), any(), any()))
                 .thenThrow(new CoreException(ErrorType.NOT_FOUND, "상품을 찾을 수 없습니다."));
 
             OrderV1Dto.CreateOrderRequest request = new OrderV1Dto.CreateOrderRequest(
                     List.of(new OrderV1Dto.OrderItemRequest(999L, 999L, 1)),
-                    null, 0, null);
+                    null, 0, null, "SAMSUNG", "1234-5678-9012-3456");
 
             // when & then
             mockMvc.perform(post("/api/v1/orders")
@@ -152,12 +156,12 @@ class OrderV1ControllerTest {
             when(mockMember.getId()).thenReturn(1L);
             when(memberService.authenticate("testuser1", "Password1!")).thenReturn(mockMember);
 
-            when(orderFacade.createOrder(anyLong(), any(), any(), anyInt(), any()))
+            when(orderPaymentFacade.createOrder(anyLong(), any(), any(), anyInt(), any(), any(), any()))
                 .thenThrow(new CoreException(ErrorType.BAD_REQUEST, "재고가 부족합니다."));
 
             OrderV1Dto.CreateOrderRequest request = new OrderV1Dto.CreateOrderRequest(
                     List.of(new OrderV1Dto.OrderItemRequest(1L, 1L, 999)),
-                    null, 0, null);
+                    null, 0, null, "SAMSUNG", "1234-5678-9012-3456");
 
             // when & then
             mockMvc.perform(post("/api/v1/orders")

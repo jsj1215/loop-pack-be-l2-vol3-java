@@ -24,7 +24,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(memberAuthInterceptor)
-                .addPathPatterns("/api/v1/**")
+                .addPathPatterns("/api/v1/**", "/api/v2/**")
                 .excludePathPatterns(
                         "/api/v1/members/signup",
                         "/api/v1/brands/**",
@@ -34,7 +34,9 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/api/v1/products/{id}/local-cache",
                         "/api/v1/products/no-cache",
                         "/api/v1/products/{id}/no-cache",
-                        "/api/v1/examples/**"
+                        "/api/v1/examples/**",
+                        "/api/v1/payments/callback",
+                        "/api/v2/payments/callback"
                 );
 
         registry.addInterceptor(adminAuthInterceptor)

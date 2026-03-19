@@ -3,6 +3,11 @@ package com.loopers.interfaces.api.order.dto;
 import com.loopers.application.order.OrderDetailInfo;
 import com.loopers.application.order.OrderInfo;
 import com.loopers.application.order.OrderItemInfo;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
 
 import java.time.ZonedDateTime;
 import java.util.List;
@@ -10,14 +15,24 @@ import java.util.List;
 public class OrderV1Dto {
 
     public record CreateOrderRequest(
+            @NotEmpty(message = "주문 항목은 1개 이상이어야 합니다.")
+            @Valid
             List<OrderItemRequest> items,
             Long memberCouponId,
+            @Min(value = 0, message = "사용 포인트는 0 이상이어야 합니다.")
             int usedPoints,
-            List<Long> cartProductOptionIds) {}
+            List<Long> cartProductOptionIds,
+            @NotBlank(message = "카드 종류는 필수입니다.")
+            String cardType,
+            @NotBlank(message = "카드 번호는 필수입니다.")
+            String cardNo) {}
 
     public record OrderItemRequest(
+            @NotNull(message = "상품 ID는 필수입니다.")
             Long productId,
+            @NotNull(message = "상품 옵션 ID는 필수입니다.")
             Long productOptionId,
+            @Min(value = 1, message = "수량은 1 이상이어야 합니다.")
             int quantity) {}
 
     public record OrderResponse(

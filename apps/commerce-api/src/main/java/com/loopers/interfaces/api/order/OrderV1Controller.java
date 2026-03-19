@@ -3,11 +3,13 @@ package com.loopers.interfaces.api.order;
 import com.loopers.application.order.OrderDetailInfo;
 import com.loopers.application.order.OrderFacade;
 import com.loopers.application.order.OrderInfo;
+import com.loopers.application.order.OrderPaymentFacade;
 import com.loopers.domain.member.Member;
 import com.loopers.domain.order.OrderService.OrderItemRequest;
 import com.loopers.interfaces.api.ApiResponse;
 import com.loopers.interfaces.api.auth.LoginMember;
 import com.loopers.interfaces.api.order.dto.OrderV1Dto;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -31,23 +33,26 @@ import java.util.List;
 public class OrderV1Controller {
 
     private final OrderFacade orderFacade;
+    private final OrderPaymentFacade orderPaymentFacade;
 
     @PostMapping
     public ApiResponse<OrderV1Dto.OrderDetailResponse> createOrder(
             @LoginMember Member member,
-            @RequestBody OrderV1Dto.CreateOrderRequest request) {
+            @Valid @RequestBody OrderV1Dto.CreateOrderRequest request) {
 
         List<OrderItemRequest> itemRequests = request.items().stream()
                 .map(item -> new OrderItemRequest(item.productId(), item.productOptionId(), item.quantity()))
                 .toList();
 
         try {
-            OrderDetailInfo info = orderFacade.createOrder(
+            OrderDetailInfo info = orderPaymentFacade.createOrder(
                     member.getId(),
                     itemRequests,
                     request.memberCouponId(),
                     request.usedPoints(),
-                    request.cartProductOptionIds());
+                    request.cartProductOptionIds(),
+                    request.cardType(),
+                    request.cardNo());
 
             log.info("주문 생성 성공 memberId={}, orderId={}, totalAmount={}, discountAmount={}, usedPoints={}, paymentAmount={}",
                     member.getId(), info.id(), info.totalAmount(), info.discountAmount(), info.usedPoints(), info.paymentAmount());
