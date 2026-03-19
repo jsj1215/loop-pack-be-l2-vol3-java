@@ -56,7 +56,7 @@ import static org.junit.jupiter.api.Assertions.assertAll;
 class OrderConcurrencyTest {
 
     @Autowired
-    private OrderFacade orderFacade;
+    private OrderPlacementService orderPlacementService;
 
     @Autowired
     private ProductService productService;
@@ -205,7 +205,7 @@ class OrderConcurrencyTest {
             Runnable[] tasks = new Runnable[threadCount];
             for (int i = 0; i < threadCount; i++) {
                 long memberId = i + 1;
-                tasks[i] = () -> orderFacade.createOrder(
+                tasks[i] = () -> orderPlacementService.placeOrder(
                         memberId,
                         List.of(new OrderItemRequest(product.getId(), optionId, 1)),
                         null, 0, null
@@ -267,7 +267,7 @@ class OrderConcurrencyTest {
             for (int i = 0; i < threadCount; i++) {
                 long memberId = i + 1;
                 Long memberCouponId = memberCouponIds[i];
-                tasks[i] = () -> orderFacade.createOrder(
+                tasks[i] = () -> orderPlacementService.placeOrder(
                         memberId,
                         List.of(new OrderItemRequest(product.getId(), optionId, 1)),
                         memberCouponId, 3000, null
@@ -348,7 +348,7 @@ class OrderConcurrencyTest {
                 long memberId = i + 1;
                 Product product = products[i];
                 Long optionId = product.getOptions().get(0).getId();
-                tasks[i] = () -> orderFacade.createOrder(
+                tasks[i] = () -> orderPlacementService.placeOrder(
                         memberId,
                         List.of(new OrderItemRequest(product.getId(), optionId, 1)),
                         null, 0, null
@@ -410,7 +410,7 @@ class OrderConcurrencyTest {
             int threadCount = 2;
             Runnable[] tasks = new Runnable[threadCount];
             for (int i = 0; i < threadCount; i++) {
-                tasks[i] = () -> orderFacade.createOrder(
+                tasks[i] = () -> orderPlacementService.placeOrder(
                         memberId,
                         List.of(new OrderItemRequest(product.getId(), optionId, 1)),
                         memberCoupon.getId(), 0, null
@@ -464,7 +464,7 @@ class OrderConcurrencyTest {
             int threadCount = 2;
             Runnable[] tasks = new Runnable[threadCount];
             for (int i = 0; i < threadCount; i++) {
-                tasks[i] = () -> orderFacade.createOrder(
+                tasks[i] = () -> orderPlacementService.placeOrder(
                         memberId,
                         List.of(new OrderItemRequest(product.getId(), optionId, 1)),
                         null, 3000, null
@@ -521,7 +521,7 @@ class OrderConcurrencyTest {
             int threadCount = 2;
             Runnable[] tasks = new Runnable[threadCount];
             for (int i = 0; i < threadCount; i++) {
-                tasks[i] = () -> orderFacade.createOrder(
+                tasks[i] = () -> orderPlacementService.placeOrder(
                         memberId,
                         List.of(new OrderItemRequest(product.getId(), optionId, 1)),
                         memberCoupon.getId(), 3000, null
@@ -592,7 +592,7 @@ class OrderConcurrencyTest {
             int threadCount = 2;
             Runnable[] tasks = new Runnable[threadCount];
             for (int i = 0; i < threadCount; i++) {
-                tasks[i] = () -> orderFacade.createOrder(
+                tasks[i] = () -> orderPlacementService.placeOrder(
                         member1,
                         List.of(new OrderItemRequest(product.getId(), optionId, 1)),
                         mc1.getId(), 0, null
@@ -655,7 +655,7 @@ class OrderConcurrencyTest {
             Runnable[] tasks = new Runnable[threadCount];
 
             // 주문A: 상품1 → 상품2 순서로 요청 (내부적으로 optionId 정렬됨)
-            tasks[0] = () -> orderFacade.createOrder(
+            tasks[0] = () -> orderPlacementService.placeOrder(
                     1L,
                     List.of(
                             new OrderItemRequest(product1.getId(), optionId1, 1),
@@ -665,7 +665,7 @@ class OrderConcurrencyTest {
             );
 
             // 주문B: 상품2 → 상품1 역순으로 요청 (내부적으로 optionId 정렬됨)
-            tasks[1] = () -> orderFacade.createOrder(
+            tasks[1] = () -> orderPlacementService.placeOrder(
                     2L,
                     List.of(
                             new OrderItemRequest(product2.getId(), optionId2, 1),
@@ -740,7 +740,7 @@ class OrderConcurrencyTest {
                     );
                 };
 
-                tasks[i] = () -> orderFacade.createOrder(memberId, requests, null, 0, null);
+                tasks[i] = () -> orderPlacementService.placeOrder(memberId, requests, null, 0, null);
             }
 
             // when
@@ -801,7 +801,7 @@ class OrderConcurrencyTest {
             int threadCount = 2;
             Runnable[] tasks = new Runnable[threadCount];
             for (int i = 0; i < threadCount; i++) {
-                tasks[i] = () -> orderFacade.createOrder(
+                tasks[i] = () -> orderPlacementService.placeOrder(
                         memberId,
                         List.of(new OrderItemRequest(product.getId(), optionId, 1)),
                         memberCoupon.getId(), 0, null
@@ -860,7 +860,7 @@ class OrderConcurrencyTest {
             int threadCount = 2;
             Runnable[] tasks = new Runnable[threadCount];
             for (int i = 0; i < threadCount; i++) {
-                tasks[i] = () -> orderFacade.createOrder(
+                tasks[i] = () -> orderPlacementService.placeOrder(
                         memberId,
                         List.of(new OrderItemRequest(product.getId(), optionId, 1)),
                         memberCoupon.getId(), 3000, null
@@ -921,7 +921,7 @@ class OrderConcurrencyTest {
             Runnable[] tasks = new Runnable[threadCount];
             for (int i = 0; i < threadCount; i++) {
                 long memberId = i + 1;
-                tasks[i] = () -> orderFacade.createOrder(
+                tasks[i] = () -> orderPlacementService.placeOrder(
                         memberId,
                         List.of(
                                 new OrderItemRequest(product1.getId(), optionId1, 1),
@@ -991,7 +991,7 @@ class OrderConcurrencyTest {
 
             // 주문 3건 (각 2000 포인트 사용)
             for (int i = 0; i < orderCount; i++) {
-                tasks[i] = () -> orderFacade.createOrder(
+                tasks[i] = () -> orderPlacementService.placeOrder(
                         memberId,
                         List.of(new OrderItemRequest(product.getId(), optionId, 1)),
                         null, usePerOrder, null
@@ -1054,7 +1054,7 @@ class OrderConcurrencyTest {
             int threadCount = 2;
             Runnable[] tasks = new Runnable[threadCount];
             for (int i = 0; i < threadCount; i++) {
-                tasks[i] = () -> orderFacade.createOrder(
+                tasks[i] = () -> orderPlacementService.placeOrder(
                         memberId,
                         List.of(new OrderItemRequest(product.getId(), optionId, 1)),
                         null, 0, List.of(optionId)
