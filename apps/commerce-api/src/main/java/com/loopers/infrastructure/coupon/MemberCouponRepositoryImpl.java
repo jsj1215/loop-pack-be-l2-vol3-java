@@ -58,4 +58,9 @@ public class MemberCouponRepositoryImpl implements MemberCouponRepository {
     public int updateStatusToUsed(Long id, Long orderId, ZonedDateTime usedAt) {
         return memberCouponJpaRepository.updateStatusToUsed(id, orderId, usedAt);
     }
+
+    @Override
+    public int updateStatusToAvailable(Long id) {
+        return memberCouponJpaRepository.updateStatusToAvailable(id);
+    }
 }

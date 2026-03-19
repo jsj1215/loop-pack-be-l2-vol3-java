@@ -215,6 +215,69 @@ class PointServiceTest {
     }
 
     @Nested
+    @DisplayName("포인트를 환불할 때,")
+    class RestorePoint {
+
+        @Test
+        @DisplayName("포인트 정보가 없으면 NOT_FOUND 예외가 발생한다.")
+        void throwsNotFound_whenPointNotExists() {
+            // given
+            Long memberId = 1L;
+            when(pointRepository.findByMemberIdWithLock(memberId)).thenReturn(Optional.empty());
+
+            // when
+            CoreException exception = assertThrows(CoreException.class,
+                    () -> pointService.restorePoint(memberId, 500, "주문 실패 환불", 100L));
+
+            // then
+            assertAll(
+                    () -> assertThat(exception.getErrorType()).isEqualTo(ErrorType.NOT_FOUND),
+                    () -> verify(pointRepository, never()).save(any(Point.class)),
+                    () -> verify(pointHistoryRepository, never()).save(any(PointHistory.class)));
+        }
+
+        @Test
+        @DisplayName("환불 금액이 0 이하이면 BAD_REQUEST 예외가 발생한다.")
+        void throwsBadRequest_whenAmountIsZeroOrNegative() {
+            // given
+            Long memberId = 1L;
+            Point point = createPointWithId(1L, memberId, 1000);
+            when(pointRepository.findByMemberIdWithLock(memberId)).thenReturn(Optional.of(point));
+
+            // when
+            CoreException exception = assertThrows(CoreException.class,
+                    () -> pointService.restorePoint(memberId, 0, "주문 실패 환불", 100L));
+
+            // then
+            assertAll(
+                    () -> assertThat(exception.getErrorType()).isEqualTo(ErrorType.BAD_REQUEST),
+                    () -> verify(pointRepository, never()).save(any(Point.class)),
+                    () -> verify(pointHistoryRepository, never()).save(any(PointHistory.class)));
+        }
+
+        @Test
+        @DisplayName("정상 환불 시 잔액이 증가하고 RESTORE 이력이 저장된다.")
+        void restoresPointAndSavesHistory_whenValid() {
+            // given
+            Long memberId = 1L;
+            Point point = createPointWithId(1L, memberId, 700);
+
+            when(pointRepository.findByMemberIdWithLock(memberId)).thenReturn(Optional.of(point));
+            when(pointRepository.save(any(Point.class))).thenAnswer(invocation -> invocation.getArgument(0));
+            when(pointHistoryRepository.save(any(PointHistory.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+            // when
+            pointService.restorePoint(memberId, 300, "주문 실패 환불", 100L);
+
+            // then
+            assertAll(
+                    () -> assertThat(point.getBalance()).isEqualTo(1000),
+                    () -> verify(pointRepository, times(1)).save(any(Point.class)),
+                    () -> verify(pointHistoryRepository, times(1)).save(any(PointHistory.class)));
+        }
+    }
+
+    @Nested
     @DisplayName("포인트 잔액을 조회할 때,")
     class GetBalance {
 

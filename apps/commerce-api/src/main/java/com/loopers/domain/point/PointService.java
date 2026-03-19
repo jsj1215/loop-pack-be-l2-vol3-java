@@ -57,6 +57,21 @@ public class PointService {
     }
 
     /**
+     * 포인트 환불 (주문 실패 시 사용된 포인트 복원)
+     * 반드시 상위 레이어(@Transactional)의 트랜잭션 내에서 호출되어야 한다.
+     */
+    public void restorePoint(Long memberId, int amount, String description, Long orderId) {
+        Point point = pointRepository.findByMemberIdWithLock(memberId)
+                .orElseThrow(() -> new CoreException(ErrorType.NOT_FOUND, "포인트 정보를 찾을 수 없습니다."));
+
+        point.charge(amount);
+        pointRepository.save(point);
+
+        PointHistory history = PointHistory.createRestore(memberId, amount, point.getBalance(), description, orderId);
+        pointHistoryRepository.save(history);
+    }
+
+    /**
      * 포인트 잔액 조회
      */
     public int getBalance(Long memberId) {

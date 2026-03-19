@@ -57,4 +57,11 @@ public class PointHistory extends BaseEntity {
     public static PointHistory createUse(Long memberId, int amount, int balanceAfter, String description, Long orderId) {
         return new PointHistory(memberId, PointType.USE, amount, balanceAfter, description, orderId);
     }
+
+    /**
+     * 환불 이력 생성
+     */
+    public static PointHistory createRestore(Long memberId, int amount, int balanceAfter, String description, Long orderId) {
+        return new PointHistory(memberId, PointType.RESTORE, amount, balanceAfter, description, orderId);
+    }
 }

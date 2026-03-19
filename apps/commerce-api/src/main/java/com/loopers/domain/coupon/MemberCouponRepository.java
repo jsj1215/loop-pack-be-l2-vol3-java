@@ -24,4 +24,6 @@ public interface MemberCouponRepository {
     MemberCoupon save(MemberCoupon memberCoupon);
 
     int updateStatusToUsed(Long id, Long orderId, ZonedDateTime usedAt);
+
+    int updateStatusToAvailable(Long id);
 }

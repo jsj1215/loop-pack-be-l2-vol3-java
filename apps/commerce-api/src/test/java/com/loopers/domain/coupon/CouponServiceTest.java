@@ -642,6 +642,40 @@ class CouponServiceTest {
     }
 
     @Nested
+    @DisplayName("사용된 쿠폰을 취소할 때,")
+    class CancelUsedCoupon {
+
+        @Test
+        @DisplayName("USED 상태의 쿠폰을 AVAILABLE로 원복한다.")
+        void restoresStatusToAvailable_whenUsed() {
+            // given
+            Long memberCouponId = 1L;
+            when(memberCouponRepository.updateStatusToAvailable(memberCouponId)).thenReturn(1);
+
+            // when
+            couponService.cancelUsedCoupon(memberCouponId);
+
+            // then
+            verify(memberCouponRepository, times(1)).updateStatusToAvailable(memberCouponId);
+        }
+
+        @Test
+        @DisplayName("USED 상태가 아닌 쿠폰이면 CONFLICT 예외가 발생한다.")
+        void throwsConflict_whenNotUsedStatus() {
+            // given
+            Long memberCouponId = 1L;
+            when(memberCouponRepository.updateStatusToAvailable(memberCouponId)).thenReturn(0);
+
+            // when
+            CoreException exception = assertThrows(CoreException.class,
+                    () -> couponService.cancelUsedCoupon(memberCouponId));
+
+            // then
+            assertThat(exception.getErrorType()).isEqualTo(ErrorType.CONFLICT);
+        }
+    }
+
+    @Nested
     @DisplayName("쿠폰을 수정할 때,")
     class UpdateCoupon {
 

@@ -144,6 +144,18 @@ public class CouponService {
     }
 
     /**
+     * 사용된 쿠폰 취소 (원자적 업데이트)
+     * - UPDATE ... WHERE status='USED' 로 AVAILABLE 상태로 복원
+     * - affected rows = 0 이면 이미 취소되었거나 USED 상태가 아닌 것으로 판단하여 CONFLICT 예외 발생
+     */
+    public void cancelUsedCoupon(Long memberCouponId) {
+        int updatedCount = memberCouponRepository.updateStatusToAvailable(memberCouponId);
+        if (updatedCount == 0) {
+            throw new CoreException(ErrorType.CONFLICT, "사용 상태가 아닌 쿠폰은 취소할 수 없습니다.");
+        }
+    }
+
+    /**
      * 쿠폰 할인 금액 계산
      * - 회원 쿠폰 소유 검증, 사용 가능 여부, 유효기간, 최소 주문 금액 검증 후 할인 금액을 반환한다.
      *
