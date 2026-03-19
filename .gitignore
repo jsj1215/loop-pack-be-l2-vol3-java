@@ -50,3 +50,11 @@ out/
 
 ### SQL ###
 *.sql
+
+### Grafana Generated ###
+docker/grafana/dashboards/
+docker/grafana/provisioning/dashboards/
+
+### k6 / Load Test Scripts ###
+docs/**/*.js
+docs/**/*.sh
