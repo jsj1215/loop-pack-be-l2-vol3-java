@@ -73,24 +73,30 @@ public class OrderPaymentFacade {
 
     private void processPayment(Long memberId, Long orderId, int amount,
                                 String cardType, String cardNo) {
-        // [트랜잭션 2] Payment(REQUESTED) 생성/저장
-        Payment payment = paymentService.initiatePayment(memberId, orderId, amount, cardType, cardNo);
+        try {
+            // [트랜잭션 2] Payment(REQUESTED) 생성/저장
+            Payment payment = paymentService.initiatePayment(memberId, orderId, amount, cardType, cardNo);
 
-        log.info("결제 요청 시작 paymentId={}, orderId={}, amount={}",
-                payment.getId(), payment.getOrderId(), payment.getAmount());
+            log.info("결제 요청 시작 paymentId={}, orderId={}, amount={}",
+                    payment.getId(), payment.getOrderId(), payment.getAmount());
 
-        // [트랜잭션 밖] PG API 호출 (PaymentGateway 구현체가 장애 대응을 내부 처리)
-        PaymentGatewayResponse response = paymentGateway.requestPayment(memberId, payment);
+            // [트랜잭션 밖] PG API 호출 (PaymentGateway 구현체가 장애 대응을 내부 처리)
+            PaymentGatewayResponse response = paymentGateway.requestPayment(memberId, payment);
 
-        // [트랜잭션 3] PG 응답에 따라 Payment 상태 업데이트
-        paymentService.updatePaymentStatus(payment.getId(), response);
+            // [트랜잭션 3] PG 응답에 따라 Payment 상태 업데이트
+            paymentService.updatePaymentStatus(payment.getId(), response);
 
-        // [트랜잭션 4] 즉시 실패(FAILED) 확인 시 보상 트랜잭션 실행
-        // PENDING/UNKNOWN은 PG 콜백 또는 verify로 최종 상태가 결정되므로 여기서 보상하지 않는다.
-        Payment updated = paymentService.findPayment(payment.getId());
-        if (updated.getStatus() == PaymentStatus.FAILED) {
-            log.warn("결제 즉시 실패 → 보상 시작 orderId={}, reason={}", orderId, updated.getFailureReason());
+            // [트랜잭션 4] 즉시 실패(FAILED) 확인 시 보상 트랜잭션 실행
+            // PENDING/UNKNOWN은 PG 콜백 또는 verify로 최종 상태가 결정되므로 여기서 보상하지 않는다.
+            Payment updated = paymentService.findPayment(payment.getId());
+            if (updated.getStatus() == PaymentStatus.FAILED) {
+                log.warn("결제 즉시 실패 → 보상 시작 orderId={}, reason={}", orderId, updated.getFailureReason());
+                orderCompensationService.compensateFailedOrder(orderId);
+            }
+        } catch (Exception e) {
+            log.error("결제 처리 중 예외 발생 → 보상 시작 orderId={}", orderId, e);
             orderCompensationService.compensateFailedOrder(orderId);
+            throw e;
         }
     }
 }

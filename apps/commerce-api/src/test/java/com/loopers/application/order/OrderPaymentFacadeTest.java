@@ -240,8 +240,8 @@ class OrderPaymentFacadeTest {
         }
 
         @Test
-        @DisplayName("주문 생성 성공 후 결제 시스템 예외 시 예외가 전파된다.")
-        void throwsException_whenPaymentFails() {
+        @DisplayName("주문 생성 성공 후 결제 시스템 예외 시 보상 트랜잭션이 실행되고 예외가 전파된다.")
+        void compensatesAndThrowsException_whenPaymentSystemFails() {
             // given
             Long memberId = 1L;
             List<OrderItemRequest> itemRequests = List.of(
@@ -258,13 +258,13 @@ class OrderPaymentFacadeTest {
             when(orderPlacementService.placeOrder(eq(memberId), eq(itemRequests), eq(null), eq(0), eq(null)))
                     .thenReturn(orderInfo);
             when(paymentService.initiatePayment(memberId, 1L, 100000, "SAMSUNG", "1234"))
-                    .thenThrow(new RuntimeException("PG 시스템 장애"));
+                    .thenThrow(new RuntimeException("DB 연결 실패"));
 
             // when & then
             assertThrows(RuntimeException.class,
                     () -> orderPaymentFacade.createOrder(memberId, itemRequests, null, 0, null, "SAMSUNG", "1234"));
 
-            verify(orderPlacementService, times(1)).placeOrder(eq(memberId), eq(itemRequests), eq(null), eq(0), eq(null));
+            verify(orderCompensationService, times(1)).compensateFailedOrder(1L);
         }
     }
 }
