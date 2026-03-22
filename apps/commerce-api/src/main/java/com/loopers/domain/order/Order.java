@@ -92,6 +92,12 @@ public class Order extends BaseEntity {
         }
     }
 
+    public void validatePayable() {
+        if (this.status != OrderStatus.PENDING) {
+            throw new CoreException(ErrorType.CONFLICT, "결제할 수 없는 주문 상태입니다.");
+        }
+    }
+
     public void markPaid() {
         validateNotFinalized();
         this.status = OrderStatus.PAID;

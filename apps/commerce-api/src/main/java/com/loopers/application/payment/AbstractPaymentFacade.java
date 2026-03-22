@@ -46,6 +46,7 @@ public abstract class AbstractPaymentFacade {
      */
     public PaymentInfo processPayment(Long memberId, Long orderId, String cardType, String cardNo) {
         Order order = orderService.findOrderDetail(orderId, memberId);
+        order.validatePayable();
         int amount = order.getPaymentAmount();
 
         Payment payment = paymentService.initiatePayment(memberId, orderId, amount, cardType, cardNo);

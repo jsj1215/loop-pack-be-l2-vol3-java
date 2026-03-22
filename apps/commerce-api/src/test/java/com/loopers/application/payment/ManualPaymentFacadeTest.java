@@ -3,6 +3,7 @@ package com.loopers.application.payment;
 import com.loopers.application.order.OrderCompensationService;
 import com.loopers.domain.order.Order;
 import com.loopers.domain.order.OrderService;
+import com.loopers.domain.order.OrderStatus;
 import com.loopers.domain.payment.Payment;
 import com.loopers.domain.payment.PaymentGateway;
 import com.loopers.domain.payment.PaymentGatewayResponse;
@@ -66,6 +67,7 @@ class ManualPaymentFacadeTest {
             ReflectionTestUtils.setField(order, "totalAmount", totalAmount);
             ReflectionTestUtils.setField(order, "discountAmount", 0);
             ReflectionTestUtils.setField(order, "usedPoints", 0);
+            ReflectionTestUtils.setField(order, "status", OrderStatus.PENDING);
             return order;
         } catch (Exception e) {
             throw new RuntimeException(e);

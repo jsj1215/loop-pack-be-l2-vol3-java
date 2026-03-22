@@ -3,6 +3,9 @@ package com.loopers.application.payment;
 import com.loopers.application.order.OrderCompensationService;
 import com.loopers.domain.order.Order;
 import com.loopers.domain.order.OrderService;
+import com.loopers.domain.order.OrderStatus;
+import com.loopers.support.error.CoreException;
+import com.loopers.support.error.ErrorType;
 import com.loopers.domain.payment.Payment;
 import com.loopers.domain.payment.PaymentGateway;
 import com.loopers.domain.payment.PaymentGatewayResponse;
@@ -67,6 +70,7 @@ class PaymentFacadeTest {
             ReflectionTestUtils.setField(order, "totalAmount", totalAmount);
             ReflectionTestUtils.setField(order, "discountAmount", 0);
             ReflectionTestUtils.setField(order, "usedPoints", 0);
+            ReflectionTestUtils.setField(order, "status", OrderStatus.PENDING);
             return order;
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -158,6 +162,26 @@ class PaymentFacadeTest {
             // then
             verify(paymentService).updatePaymentStatus(eq(1L), eq(PaymentGatewayResponse.ofTimeout()));
             assertThat(result.status()).isEqualTo(PaymentStatus.UNKNOWN);
+        }
+
+        @Test
+        @DisplayName("FAILED 주문에 대한 결제 재시도 시 CONFLICT 예외가 발생한다.")
+        void rejectsPaymentForFailedOrder() {
+            // given
+            Long memberId = 1L;
+            Long orderId = 100L;
+
+            Order order = createOrderStub(orderId, memberId, 50000);
+            ReflectionTestUtils.setField(order, "status", OrderStatus.FAILED);
+            when(orderService.findOrderDetail(orderId, memberId)).thenReturn(order);
+
+            // when & then
+            CoreException exception = org.junit.jupiter.api.Assertions.assertThrows(
+                    CoreException.class,
+                    () -> paymentFacade.processPayment(memberId, orderId, "SAMSUNG", "1234"));
+            assertThat(exception.getErrorType()).isEqualTo(ErrorType.CONFLICT);
+
+            verify(paymentService, never()).initiatePayment(any(), any(), any(int.class), any(), any());
         }
 
         @Test
