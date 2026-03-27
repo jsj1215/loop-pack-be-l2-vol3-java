@@ -2,6 +2,8 @@ package com.loopers.application.product;
 
 import com.loopers.domain.brand.Brand;
 import com.loopers.domain.brand.BrandStatus;
+import com.loopers.domain.event.ProductLikedEvent;
+import com.loopers.domain.event.ProductViewedEvent;
 import com.loopers.domain.like.LikeService;
 import com.loopers.domain.product.MarginType;
 import com.loopers.domain.product.Product;
@@ -16,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -26,6 +29,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -46,8 +50,12 @@ class ProductFacadeTest {
     @Mock
     private ProductCacheStore localCacheStore;
 
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+
     private ProductFacade createFacade() {
-        return new ProductFacade(productService, likeService, redisCacheStore, localCacheStore);
+        return new ProductFacade(productService, likeService, redisCacheStore, localCacheStore,
+                eventPublisher);
     }
 
     private Brand createBrandWithId(Long id) {
@@ -129,7 +137,7 @@ class ProductFacadeTest {
     class GetProduct {
 
         @Test
-        @DisplayName("캐시 히트 시 DB를 조회하지 않고 캐시된 결과를 반환한다.")
+        @DisplayName("캐시 히트 시 DB를 조회하지 않고 캐시된 결과를 반환하며, ProductViewedEvent를 발행한다.")
         void returnsCachedResult_whenCacheHit() {
             // given
             ProductFacade facade = createFacade();
@@ -139,15 +147,16 @@ class ProductFacadeTest {
             when(redisCacheStore.getDetail(1L)).thenReturn(Optional.of(product));
 
             // when
-            ProductDetailInfo result = facade.getProduct(1L);
+            ProductDetailInfo result = facade.getProduct(1L, 100L);
 
             // then
             assertThat(result.name()).isEqualTo("에어맥스");
             verify(productService, never()).findById(1L);
+            verify(eventPublisher).publishEvent(new ProductViewedEvent(1L, 100L));
         }
 
         @Test
-        @DisplayName("캐시 미스 시 DB에서 조회하고 캐시에 저장한다.")
+        @DisplayName("캐시 미스 시 DB에서 조회하고 캐시에 저장하며, ProductViewedEvent를 발행한다.")
         void queriesDbAndCaches_whenCacheMiss() {
             // given
             ProductFacade facade = createFacade();
@@ -158,12 +167,13 @@ class ProductFacadeTest {
             when(productService.findById(1L)).thenReturn(product);
 
             // when
-            ProductDetailInfo result = facade.getProduct(1L);
+            ProductDetailInfo result = facade.getProduct(1L, null);
 
             // then
             assertThat(result.name()).isEqualTo("에어맥스");
             verify(productService).findById(1L);
             verify(redisCacheStore).setDetail(1L, product);
+            verify(eventPublisher).publishEvent(new ProductViewedEvent(1L, null));
         }
     }
 
@@ -199,8 +209,8 @@ class ProductFacadeTest {
     class LikeProduct {
 
         @Test
-        @DisplayName("상품 존재 확인 후 LikeService에 위임하고, 상태가 변경되면 likeCount를 증가시킨다.")
-        void delegatesToLikeService_andIncrementsCount_whenChanged() {
+        @DisplayName("상품 존재 확인 후 LikeService에 위임하고, 상태가 변경되면 ProductLikedEvent를 발행한다.")
+        void delegatesToLikeService_andPublishesEvent_whenChanged() {
             // given
             ProductFacade facade = createFacade();
             Brand brand = createBrandWithId(1L);
@@ -215,12 +225,12 @@ class ProductFacadeTest {
             // then
             verify(productService).findById(1L);
             verify(likeService).like(1L, 1L);
-            verify(productService).incrementLikeCount(1L);
+            verify(eventPublisher).publishEvent(new ProductLikedEvent(1L, 1L, true));
         }
 
         @Test
-        @DisplayName("이미 좋아요 상태면 likeCount를 증가시키지 않는다. (멱등성)")
-        void doesNotIncrementCount_whenAlreadyLiked() {
+        @DisplayName("이미 좋아요 상태면 이벤트를 발행하지 않는다. (멱등성)")
+        void doesNotPublishEvent_whenAlreadyLiked() {
             // given
             ProductFacade facade = createFacade();
             Brand brand = createBrandWithId(1L);
@@ -233,7 +243,7 @@ class ProductFacadeTest {
             facade.like(1L, 1L);
 
             // then
-            verify(productService, never()).incrementLikeCount(1L);
+            verify(eventPublisher, never()).publishEvent(any(ProductLikedEvent.class));
         }
     }
 
@@ -242,8 +252,8 @@ class ProductFacadeTest {
     class UnlikeProduct {
 
         @Test
-        @DisplayName("LikeService에 위임하고, 상태가 변경되면 likeCount를 감소시킨다.")
-        void delegatesToLikeService_andDecrementsCount_whenChanged() {
+        @DisplayName("LikeService에 위임하고, 상태가 변경되면 ProductLikedEvent(liked=false)를 발행한다.")
+        void delegatesToLikeService_andPublishesEvent_whenChanged() {
             // given
             ProductFacade facade = createFacade();
 
@@ -254,12 +264,12 @@ class ProductFacadeTest {
 
             // then
             verify(likeService).unlike(1L, 1L);
-            verify(productService).decrementLikeCount(1L);
+            verify(eventPublisher).publishEvent(new ProductLikedEvent(1L, 1L, false));
         }
 
         @Test
-        @DisplayName("이미 취소 상태면 likeCount를 감소시키지 않는다. (멱등성)")
-        void doesNotDecrementCount_whenAlreadyUnliked() {
+        @DisplayName("이미 취소 상태면 이벤트를 발행하지 않는다. (멱등성)")
+        void doesNotPublishEvent_whenAlreadyUnliked() {
             // given
             ProductFacade facade = createFacade();
 
@@ -269,7 +279,7 @@ class ProductFacadeTest {
             facade.unlike(1L, 1L);
 
             // then
-            verify(productService, never()).decrementLikeCount(1L);
+            verify(eventPublisher, never()).publishEvent(any(ProductLikedEvent.class));
         }
     }
 }

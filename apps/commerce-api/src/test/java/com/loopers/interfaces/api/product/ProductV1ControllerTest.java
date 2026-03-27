@@ -102,7 +102,7 @@ class ProductV1ControllerTest {
             // given
             ProductOptionInfo optInfo = new ProductOptionInfo(1L, "M사이즈", 100);
             ProductDetailInfo info = new ProductDetailInfo(1L, 1L, "나이키", "에어맥스", 100000, 80000, 10000, 3000, 0, "설명", MarginType.AMOUNT, ProductStatus.ON_SALE, "Y", List.of(optInfo), ZonedDateTime.now());
-            when(productFacade.getProduct(1L)).thenReturn(info);
+            when(productFacade.getProduct(1L, null)).thenReturn(info);
 
             // when & then
             mockMvc.perform(get("/api/v1/products/1"))
@@ -115,7 +115,7 @@ class ProductV1ControllerTest {
         @DisplayName("존재하지 않는 상품 조회 시 404를 반환한다.")
         void returnsNotFound_whenProductNotExists() throws Exception {
             // given
-            when(productFacade.getProduct(999L))
+            when(productFacade.getProduct(999L, null))
                 .thenThrow(new CoreException(ErrorType.NOT_FOUND, "상품을 찾을 수 없습니다."));
 
             // when & then

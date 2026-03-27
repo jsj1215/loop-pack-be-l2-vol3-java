@@ -70,7 +70,7 @@ public class ProductCacheWarmUp {
 
             for (ProductInfo productInfo : products.getContent()) {
                 try {
-                    productFacade.getProduct(productInfo.id());
+                    productFacade.getProduct(productInfo.id(), null);
                     warmedCount++;
                 } catch (Exception e) {
                     log.warn("[CacheWarmUp] 상품 상세 캐시 웜업 실패: productId={}", productInfo.id(), e);

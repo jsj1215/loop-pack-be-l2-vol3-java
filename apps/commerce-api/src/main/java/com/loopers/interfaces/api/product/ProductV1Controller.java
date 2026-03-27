@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+// 상품 API V1 컨트롤러 (목록/상세 조회, 좋아요)
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/api/v1/products")
@@ -80,8 +81,11 @@ public class ProductV1Controller {
      * @return
      */
     @GetMapping("/{productId}")
-    public ApiResponse<ProductV1Dto.ProductDetailResponse> getProduct(@PathVariable Long productId) {
-        ProductDetailInfo info = productFacade.getProduct(productId);
+    public ApiResponse<ProductV1Dto.ProductDetailResponse> getProduct(
+            @LoginMember(required = false) Member member,
+            @PathVariable Long productId) {
+        Long memberId = member != null ? member.getId() : null;
+        ProductDetailInfo info = productFacade.getProduct(productId, memberId);
         return ApiResponse.success(ProductV1Dto.ProductDetailResponse.from(info));
     }
 
