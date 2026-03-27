@@ -85,6 +85,37 @@ class CouponTest {
     }
 
     @Nested
+    @DisplayName("선착순 수량 제한 확인")
+    class IsLimitedIssue {
+
+        @Test
+        @DisplayName("maxIssueCount > 0이면 선착순 쿠폰이다")
+        void returnsTrue_whenMaxIssueCountIsPositive() {
+            // given
+            Coupon coupon = new Coupon("선착순 쿠폰", CouponScope.CART, null,
+                    DiscountType.FIXED_AMOUNT, 5000, 10000, 0,
+                    ZonedDateTime.now().minusDays(1), ZonedDateTime.now().plusDays(30), 100);
+
+            // when & then
+            assertThat(coupon.isLimitedIssue()).isTrue();
+            assertThat(coupon.getMaxIssueCount()).isEqualTo(100);
+        }
+
+        @Test
+        @DisplayName("maxIssueCount = 0이면 일반 쿠폰이다")
+        void returnsFalse_whenMaxIssueCountIsZero() {
+            // given
+            Coupon coupon = new Coupon("일반 쿠폰", CouponScope.CART, null,
+                    DiscountType.FIXED_AMOUNT, 5000, 10000, 0,
+                    ZonedDateTime.now().minusDays(1), ZonedDateTime.now().plusDays(30));
+
+            // when & then
+            assertThat(coupon.isLimitedIssue()).isFalse();
+            assertThat(coupon.getMaxIssueCount()).isZero();
+        }
+    }
+
+    @Nested
     @DisplayName("할인 금액을 계산할 때,")
     class CalculateDiscount {
 

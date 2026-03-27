@@ -36,6 +36,9 @@ public class MemberCoupon extends BaseEntity {
     @Column(name = "used_at")
     private ZonedDateTime usedAt;
 
+    @Column(name = "fail_reason")
+    private String failReason;
+
     protected MemberCoupon() {}
 
     public MemberCoupon(Long memberId, Long couponId) {
@@ -45,10 +48,55 @@ public class MemberCoupon extends BaseEntity {
     }
 
     /**
+     * 선착순 쿠폰 발급 요청용 정적 팩토리 메서드.
+     * 상태를 REQUESTED로 생성하여 비동기 처리 대기 상태를 표현한다.
+     */
+    public static MemberCoupon createRequested(Long memberId, Long couponId) {
+        MemberCoupon memberCoupon = new MemberCoupon();
+        memberCoupon.memberId = memberId;
+        memberCoupon.couponId = couponId;
+        memberCoupon.status = MemberCouponStatus.REQUESTED;
+        return memberCoupon;
+    }
+
+    /**
      * 쿠폰 사용 가능 여부 확인
      */
     public boolean isAvailable() {
         return this.status == MemberCouponStatus.AVAILABLE;
+    }
+
+    /**
+     * 선착순 발급 승인 — REQUESTED → AVAILABLE 상태 전환
+     */
+    public void approve() {
+        if (this.status != MemberCouponStatus.REQUESTED) {
+            throw new CoreException(ErrorType.CONFLICT, "요청 상태의 쿠폰만 승인할 수 있습니다.");
+        }
+        this.status = MemberCouponStatus.AVAILABLE;
+    }
+
+    /**
+     * 선착순 발급 거부 — REQUESTED → FAILED 상태 전환
+     */
+    public void reject(String reason) {
+        if (this.status != MemberCouponStatus.REQUESTED) {
+            throw new CoreException(ErrorType.CONFLICT, "요청 상태의 쿠폰만 거부할 수 있습니다.");
+        }
+        this.status = MemberCouponStatus.FAILED;
+        this.failReason = reason;
+    }
+
+    /**
+     * 선착순 발급 재요청 — FAILED → REQUESTED 상태 전환
+     * 수량 초과 등으로 거절된 후 재시도할 때 사용한다.
+     */
+    public void retryRequest() {
+        if (this.status != MemberCouponStatus.FAILED) {
+            throw new CoreException(ErrorType.CONFLICT, "실패 상태의 쿠폰만 재요청할 수 있습니다.");
+        }
+        this.status = MemberCouponStatus.REQUESTED;
+        this.failReason = null;
     }
 
     /**

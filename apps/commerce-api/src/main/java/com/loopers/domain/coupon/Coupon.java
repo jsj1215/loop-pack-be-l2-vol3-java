@@ -46,12 +46,23 @@ public class Coupon extends BaseEntity {
     @Column(name = "valid_to", nullable = false)
     private ZonedDateTime validTo;
 
+    @Column(name = "max_issue_count", nullable = false)
+    private int maxIssueCount;
+
     protected Coupon() {}
 
     public Coupon(String name, CouponScope couponScope, Long targetId,
                   DiscountType discountType, int discountValue, int minOrderAmount,
                   int maxDiscountAmount,
                   ZonedDateTime validFrom, ZonedDateTime validTo) {
+        this(name, couponScope, targetId, discountType, discountValue, minOrderAmount,
+                maxDiscountAmount, validFrom, validTo, 0);
+    }
+
+    public Coupon(String name, CouponScope couponScope, Long targetId,
+                  DiscountType discountType, int discountValue, int minOrderAmount,
+                  int maxDiscountAmount,
+                  ZonedDateTime validFrom, ZonedDateTime validTo, int maxIssueCount) {
         validateCoupon(name, discountType, discountValue, validFrom, validTo);
         this.name = name;
         this.couponScope = couponScope;
@@ -62,6 +73,7 @@ public class Coupon extends BaseEntity {
         this.maxDiscountAmount = maxDiscountAmount;
         this.validFrom = validFrom;
         this.validTo = validTo;
+        this.maxIssueCount = maxIssueCount;
     }
 
     /**
@@ -100,6 +112,13 @@ public class Coupon extends BaseEntity {
         if (!validFrom.isBefore(validTo)) {
             throw new CoreException(ErrorType.BAD_REQUEST, "유효기간 시작일은 종료일보다 이전이어야 합니다.");
         }
+    }
+
+    /**
+     * 선착순 수량 제한 쿠폰인지 확인
+     */
+    public boolean isLimitedIssue() {
+        return this.maxIssueCount > 0;
     }
 
     /**

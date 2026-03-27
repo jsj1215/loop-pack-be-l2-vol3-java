@@ -9,9 +9,11 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
 import java.time.ZonedDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
+// MemberCouponRepository 구현체 (Soft Delete 조건을 JPA 쿼리에 적용)
 @RequiredArgsConstructor
 @Component
 public class MemberCouponRepositoryImpl implements MemberCouponRepository {
@@ -52,6 +54,11 @@ public class MemberCouponRepositoryImpl implements MemberCouponRepository {
     @Override
     public MemberCoupon save(MemberCoupon memberCoupon) {
         return memberCouponJpaRepository.save(memberCoupon);
+    }
+
+    @Override
+    public long countByCouponIdAndStatusIn(Long couponId, Collection<MemberCouponStatus> statuses) {
+        return memberCouponJpaRepository.countByCouponIdAndStatusIn(couponId, statuses);
     }
 
     @Override
