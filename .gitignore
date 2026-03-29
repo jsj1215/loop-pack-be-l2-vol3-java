@@ -58,3 +58,6 @@ docker/grafana/provisioning/dashboards/
 ### k6 / Load Test Scripts ###
 docs/**/*.js
 docs/**/*.sh
+
+
+*.kts
