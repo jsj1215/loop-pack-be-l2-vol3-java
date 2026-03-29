@@ -14,11 +14,14 @@ spring:
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all                    # 모든 브로커 복제본이 저장 확인해야 성공으로 간주 (유실 방지)
       retries: 3
+      properties:
+        enable.idempotence: true   # 네트워크 재시도로 중복 전송되어도 Kafka가 1번만 저장
     consumer:
       group-id: loopers-default-consumer
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-serializer: org.apache.kafka.common.serialization.ByteArrayDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.ByteArrayDeserializer
       properties:
         enable-auto-commit: false
     listener:
